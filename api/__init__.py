@@ -13,5 +13,6 @@
 """
 Pixelle-Video API Layer
 
-FastAPI-based REST API for video generation services.
+基于 FastAPI 框架构建的 RESTful API 接口层。
+此模块提供了对底层核心业务（视频生成、旁白拆分、资源查询等）的标准化 HTTP 调用包装。
 """

@@ -13,8 +13,9 @@
 """
 Pixelle-Video Pipelines
 
-Video generation pipelines with different strategies and workflows.
-Each pipeline implements a specific video generation approach.
+视频生成流水线（Pipelines）集合包。
+这里汇总并暴露了所有的视频生成策略和工作流类。
+每个流水线实现了在特定场景或策略下（如自动生成、提供资产合成等）生成视频的方法。
 """
 
 from pixelle_video.pipelines.base import BasePipeline
@@ -31,4 +32,3 @@ __all__ = [
     "CustomPipeline",
     "AssetBasedPipeline",
 ]
-

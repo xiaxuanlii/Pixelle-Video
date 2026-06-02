@@ -12,6 +12,9 @@
 
 """
 Task management for async operations
+
+异步任务管理模块的初始化文件。
+向外暴露核心的任务数据结构（模型）和全局任务管理器实例（`task_manager`）。
 """
 
 from api.tasks.models import Task, TaskStatus, TaskType

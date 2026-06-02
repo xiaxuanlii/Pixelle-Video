@@ -12,6 +12,10 @@
 
 """
 API Schemas (Pydantic models)
+
+API 接口数据模型包初始化文件。
+此文件集中导入并暴露了各个子模块中定义的 Pydantic 请求和响应模型，
+方便在其他地方通过 `from api.schemas import xxx` 统一引用。
 """
 
 from api.schemas.base import BaseResponse, ErrorResponse
@@ -33,26 +37,26 @@ from api.schemas.video import (
 )
 
 __all__ = [
-    # Base
+    # Base / 基础模型
     "BaseResponse",
     "ErrorResponse",
-    # LLM
+    # LLM / 大语言模型对话
     "LLMChatRequest",
     "LLMChatResponse",
-    # TTS
+    # TTS / 语音合成
     "TTSSynthesizeRequest",
     "TTSSynthesizeResponse",
-    # Image
+    # Image / 图像生成
     "ImageGenerateRequest",
     "ImageGenerateResponse",
-    # Content
+    # Content / 内容创作(旁白、提示词、标题)
     "NarrationGenerateRequest",
     "NarrationGenerateResponse",
     "ImagePromptGenerateRequest",
     "ImagePromptGenerateResponse",
     "TitleGenerateRequest",
     "TitleGenerateResponse",
-    # Video
+    # Video / 视频生成
     "VideoGenerateRequest",
     "VideoGenerateResponse",
     "VideoGenerateAsyncResponse",

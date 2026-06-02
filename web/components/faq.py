@@ -12,6 +12,9 @@
 
 """
 FAQ component for displaying frequently asked questions
+
+侧边栏帮助与支持组件 (FAQ)。
+自动根据当前的国际化语言状态 (i18n) 加载不同的说明 Markdown 文件。
 """
 
 import re
@@ -26,17 +29,14 @@ from web.i18n import get_language, tr
 
 def load_faq_content(language: str) -> Optional[str]:
     """
-    Load FAQ content based on current language
+    根据给定的语言标识符载入对应的 Markdown 文件作为 FAQ 源内容。
     
     Args:
-        language: Current language code (e.g., "zh_CN", "en_US")
+        language: 语种编码 (例如 "zh_CN", "en_US")。
     
     Returns:
-        FAQ content as markdown string, or None if file not found
+        解析出的原始 Markdown 文本字符串。
     """
-    # Determine which FAQ file to load based on language
-    # For Chinese (zh_CN), use FAQ_CN.md
-    # For all other languages, use FAQ.md (English)
     project_root = Path(__file__).resolve().parent.parent.parent
     
     if language.startswith("zh"):
@@ -60,21 +60,15 @@ def load_faq_content(language: str) -> Optional[str]:
 
 def parse_faq_sections(content: str) -> list[tuple[str, str]]:
     """
-    Parse FAQ content into sections by ### headings
+    基于 Markdown 大纲规范将 FAQ 文本拆解为问题与答案组 (Section)。
     
-    Args:
-        content: Raw markdown content
-    
-    Returns:
-        List of (question, answer) tuples
+    依赖特征：每遇到一行以 `### ` (三级标题) 开始的内容，即认为开启了一个新的问答卡片。
     """
-    # Remove the first main heading (starts with #, not ###)
+    # 丢弃头部的文档标题信息，直接寻找实质正文
     lines = content.split('\n')
     if lines and lines[0].startswith('#') and not lines[0].startswith('##'):
         content = '\n'.join(lines[1:])
     
-    # Split by ### headings (top-level questions)
-    # Pattern matches ### at start of line followed by question text
     pattern = r'^###\s+(.+?)$'
     
     sections = []
@@ -84,17 +78,18 @@ def parse_faq_sections(content: str) -> list[tuple[str, str]]:
     for line in content.split('\n'):
         match = re.match(pattern, line)
         if match:
-            # Save previous section if exists
+            # 当匹配到下一个问题时，保存前一组缓冲好的提问与解答文本
             if current_question is not None:
                 answer = '\n'.join(current_answer_lines).strip()
                 sections.append((current_question, answer))
-            # Start new section
+            
+            # 开始读取捕捉新问题
             current_question = match.group(1).strip()
             current_answer_lines = []
         else:
             current_answer_lines.append(line)
     
-    # Save last section
+    # 闭合补存最后一个读到的卡片组
     if current_question is not None:
         answer = '\n'.join(current_answer_lines).strip()
         sections.append((current_question, answer))
@@ -104,39 +99,28 @@ def parse_faq_sections(content: str) -> list[tuple[str, str]]:
 
 def render_faq_sidebar():
     """
-    Render FAQ in the sidebar
-    
-    This component displays frequently asked questions in the sidebar,
-    allowing users to quickly find answers without leaving the main interface.
+    渲染展开式的问答侧边栏组件库。
     """
     with st.sidebar:
-        # FAQ header with icon
-        # st.markdown(f"### 🙋‍♀️ {tr('faq.title', fallback='FAQ')}")
-        
-        # Get current language
         current_language = get_language()
         
-        # Load FAQ content
         faq_content = load_faq_content(current_language)
         
         if faq_content:
-            # Display FAQ in an expander, expanded by default
             with st.expander(tr('faq.expand_to_view', fallback='FAQ'), expanded=True):
-                # Parse FAQ into sections
                 sections = parse_faq_sections(faq_content)
                 
-                # Display each question in its own collapsible expander
+                # 嵌套多级的可手风琴折叠展开块，每一个折叠卡内嵌单个问题
                 for question, answer in sections:
                     with st.expander(question, expanded=False):
                         st.markdown(answer, unsafe_allow_html=True)
             
-            # Add a link to GitHub issues for more help
             st.markdown(
                 f"💡 {tr('faq.more_help', fallback='Need more help?')} "
                 f"[GitHub Issues](https://github.com/AIDC-AI/Pixelle-Video/issues)"
             )
         else:
-            # If FAQ cannot be loaded, only show the GitHub link
+            # 文件缺失时的保底回退静态呈现
             st.markdown(f"### 💡 {tr('faq.more_help', fallback='Need help?')}")
             st.markdown(
                 f"[GitHub Issues](https://github.com/AIDC-AI/Pixelle-Video/issues) | "

@@ -13,8 +13,10 @@
 """
 Content generation utility functions
 
-Pure/stateless functions for generating content using LLM.
-These functions are reusable across different pipelines.
+内容生成工具函数模块。
+提供一组纯函数（无状态），用于封装与大语言模型（LLM）的各种交互场景
+（如生成标题、发散旁白、根据脚本切割分镜、推断画面提示词等）。
+这些函数可以在不同的生成流水线中被复用。
 """
 
 import json
@@ -31,19 +33,19 @@ async def generate_title(
     max_length: int = 15
 ) -> str:
     """
-    Generate title from content
+    根据给定的内容提取或生成视频标题。
     
     Args:
-        llm_service: LLM service instance
-        content: Source content (topic or script)
-        strategy: Generation strategy
-            - "auto": Auto-decide based on content length (default)
-            - "direct": Use content directly (truncated if needed)
-            - "llm": Always use LLM to generate title
-        max_length: Maximum title length (default: 15)
+        llm_service: LLM 服务实例。
+        content: 源内容（主题或完整剧本）。
+        strategy: 生成策略：
+            - "auto": 自动决定（如果内容足够短则直接使用，否则调用 LLM 生成，默认值）。
+            - "direct": 直接使用源内容（如果超长将被截断）。
+            - "llm": 强制调用大模型对内容进行总结提炼。
+        max_length: 允许的最大标题长度（默认 15 个字符）。
     
     Returns:
-        Generated title
+        str: 最终生成的精简标题。
     """
     if strategy == "direct":
         content = content.strip()
@@ -100,17 +102,17 @@ async def generate_narrations_from_topic(
     max_words: int = 20
 ) -> List[str]:
     """
-    Generate narrations from topic using LLM
+    使用大模型根据简短的主题发散生成多个分镜的旁白。
     
     Args:
-        llm_service: LLM service instance
-        topic: Topic/theme to generate narrations from
-        n_scenes: Number of narrations to generate
-        min_words: Minimum narration length
-        max_words: Maximum narration length
+        llm_service: LLM 服务实例。
+        topic: 用于生成旁白的主题或核心立意。
+        n_scenes: 期望生成的分镜/旁白段数。
+        min_words: 每段旁白的最小字数限制。
+        max_words: 每段旁白的最大字数限制。
     
     Returns:
-        List of narration texts
+        List[str]: 生成的旁白文本列表。
     """
     from pixelle_video.prompts import build_topic_narration_prompt
     
@@ -158,17 +160,17 @@ async def generate_narrations_from_content(
     max_words: int = 20
 ) -> List[str]:
     """
-    Generate narrations from user-provided content using LLM
+    使用大模型将用户提供的长篇内容拆分和改写为适合视频朗读的旁白。
     
     Args:
-        llm_service: LLM service instance
-        content: User-provided content
-        n_scenes: Number of narrations to generate
-        min_words: Minimum narration length
-        max_words: Maximum narration length
+        llm_service: LLM 服务实例。
+        content: 用户提供的源内容材料。
+        n_scenes: 期望拆分出的旁白段数。
+        min_words: 每段旁白的最小字数限制。
+        max_words: 每段旁白的最大字数限制。
     
     Returns:
-        List of narration texts
+        List[str]: 拆分改写后的旁白文本列表。
     """
     from pixelle_video.prompts import build_content_narration_prompt
     
@@ -211,17 +213,17 @@ async def split_narration_script(
     split_mode: Literal["paragraph", "line", "sentence"] = "paragraph",
 ) -> List[str]:
     """
-    Split user-provided narration script into segments
+    根据预定的符号或规则，将用户提供的固定脚本直接切分为各个分镜的旁白（不使用大模型）。
     
     Args:
-        script: Fixed narration script
-        split_mode: Splitting strategy
-            - "paragraph": Split by double newline (\\n\\n), preserve single newlines within paragraphs
-            - "line": Split by single newline (\\n), each line is a segment
-            - "sentence": Split by sentence-ending punctuation (。.!?！？)
+        script: 固定的旁白长文本脚本。
+        split_mode: 拆分策略：
+            - "paragraph": 按双换行符 (\\n\\n) 拆分（推荐用于段落结构的剧本）。
+            - "line": 按单换行符 (\\n) 拆分（每一行作为一个分镜旁白）。
+            - "sentence": 按句子结尾标点符号（如 。.!?！？）进行断句拆分。
     
     Returns:
-        List of narration segments
+        List[str]: 拆分后的旁白段落列表。
     """
     logger.info(f"Splitting script (mode={split_mode}, length={len(script)} chars)")
     
@@ -276,19 +278,20 @@ async def generate_image_prompts(
     progress_callback: Optional[callable] = None
 ) -> List[str]:
     """
-    Generate image prompts from narrations (with batching and retry)
+    根据已有的旁白列表，利用大模型批量推理生成对应的画面提示词（用于生图）。
+    包含自动分批处理和错误重试机制。
     
     Args:
-        llm_service: LLM service instance
-        narrations: List of narrations
-        min_words: Min image prompt length
-        max_words: Max image prompt length
-        batch_size: Max narrations per batch (default: 10)
-        max_retries: Max retry attempts per batch (default: 3)
-        progress_callback: Optional callback(completed, total, message) for progress updates
+        llm_service: LLM 服务实例。
+        narrations: 旁白文本列表。
+        min_words: 每个提示词的最小长度。
+        max_words: 每个提示词的最大长度。
+        batch_size: 每批次同时交给大模型处理的最大旁白数量（默认 10）。
+        max_retries: 每批次允许失败重试的最大次数（默认 3）。
+        progress_callback: 进度的回调函数 (completed, total, message)。
     
     Returns:
-        List of image prompts (base prompts, without prefix applied)
+        List[str]: 画面提示词列表（基础提示词，未加上全局的前缀修饰语）。
     """
     from pixelle_video.prompts import build_image_prompt_prompt
     
@@ -379,19 +382,20 @@ async def generate_video_prompts(
     progress_callback: Optional[callable] = None
 ) -> List[str]:
     """
-    Generate video prompts from narrations (with batching and retry)
+    根据已有的旁白列表，利用大模型批量推理生成对应的视频动态描述提示词（用于生视频）。
+    包含自动分批处理和错误重试机制。
     
     Args:
-        llm_service: LLM service instance
-        narrations: List of narrations
-        min_words: Min video prompt length
-        max_words: Max video prompt length
-        batch_size: Max narrations per batch (default: 10)
-        max_retries: Max retry attempts per batch (default: 3)
-        progress_callback: Optional callback(completed, total, message) for progress updates
+        llm_service: LLM 服务实例。
+        narrations: 旁白文本列表。
+        min_words: 每个动态提示词的最小长度。
+        max_words: 每个动态提示词的最大长度。
+        batch_size: 每批次同时交给大模型处理的最大旁白数量（默认 10）。
+        max_retries: 每批次允许失败重试的最大次数（默认 3）。
+        progress_callback: 进度的回调函数。
     
     Returns:
-        List of video prompts (base prompts, without prefix applied)
+        List[str]: 视频动态画面提示词列表。
     """
     from pixelle_video.prompts.video_generation import build_video_prompt_prompt
     
@@ -463,16 +467,19 @@ async def generate_video_prompts(
 
 def _parse_json(text: str) -> dict:
     """
-    Parse JSON from text, with fallback to extract JSON from markdown code blocks
+    高兼容性的内部 JSON 解析器。
+    
+    如果遇到不规范的 JSON（如首尾包含多余文本或被包裹在 Markdown 代码块中），
+    尝试通过正则提取有效的 JSON 结构。
     
     Args:
-        text: Text containing JSON
+        text: 包含目标 JSON 的原始文本。
         
     Returns:
-        Parsed JSON dict
+        解析后的 JSON 字典对象。
         
     Raises:
-        json.JSONDecodeError: If no valid JSON found
+        json.JSONDecodeError: 所有的提取尝试都失败时抛出。
     """
     # Try direct parsing first
     try:
@@ -500,4 +507,5 @@ def _parse_json(text: str) -> dict:
     
     # If all fails, raise error
     raise json.JSONDecodeError("No valid JSON found", text, 0)
+
 

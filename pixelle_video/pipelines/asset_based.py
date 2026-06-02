@@ -13,21 +13,22 @@
 """
 Asset-Based Video Pipeline
 
-Generates marketing videos from user-provided assets (images/videos) rather than
-AI-generated media. Ideal for small businesses with existing media libraries.
+基于用户已有资产（素材）的视频生成流水线。
+此工作流不会使用 AI 生成底图或底层视频，而是直接从用户上传的素材（图片/视频片段）中生成营销视频。
+非常适合那些拥有丰富产品库、希望快速生成宣发视频的电商卖家或小微企业。
 
-Workflow:
-1. Analyze uploaded assets (images/videos)
-2. Generate script based on user intent and available assets
-3. Match assets to script scenes
-4. Compose final video with narrations
+完整工作流步骤:
+1. 分析并索引用户上传的资产 (图片/视频)。
+2. 根据用户的营销意图 (intent) 和资产描述，利用 LLM 生成完整的带货脚本。
+3. 自动将脚本分镜与最匹配的资产进行关联。
+4. 基于现成资产合成带有语音旁白和字幕排版的最终视频。
 
-Example:
+使用示例:
     pipeline = AssetBasedPipeline(pixelle_video)
     result = await pipeline(
         assets=["/path/img1.jpg", "/path/img2.jpg"],
-        video_title="Pet Store Year-End Sale",
-        intent="Promote our pet store's year-end sale with a warm and friendly tone",
+        video_title="宠物店年终大促",
+        intent="用温暖友好的语调，宣传我们宠物店的年终促销活动",
         duration=30
     )
 """
@@ -55,23 +56,23 @@ ProgressCallback = Optional[Callable[[ProgressEvent], None]]
 # ==================== Structured Output Models ====================
 
 class SceneScript(BaseModel):
-    """Single scene in the video script"""
-    scene_number: int = Field(description="Scene number starting from 1")
-    asset_path: str = Field(description="Path to the asset file for this scene")
-    narrations: List[str] = Field(description="List of narration sentences for this scene (1-5 sentences)")
-    duration: int = Field(description="Estimated duration in seconds for this scene")
+    """视频脚本中的单个分镜片段模型"""
+    scene_number: int = Field(description="分镜序号，从 1 开始")
+    asset_path: str = Field(description="该分镜匹配到的具体资产（素材）文件路径")
+    narrations: List[str] = Field(description="该分镜的旁白句子列表（通常为 1-5 句）")
+    duration: int = Field(description="该分镜预估的持续时长（秒）")
 
 
 class VideoScript(BaseModel):
-    """Complete video script with scenes"""
-    scenes: List[SceneScript] = Field(description="List of scenes in the video")
+    """包含所有分镜的完整视频脚本模型"""
+    scenes: List[SceneScript] = Field(description="视频中所有分镜的列表")
 
 
 class AssetBasedPipeline(LinearVideoPipeline):
     """
-    Asset-Based Video Pipeline
+    基于资产的视频生成流水线。
     
-    Generates videos from user-provided assets instead of AI-generated media.
+    从用户提供的真实素材生成视频，跳过了昂贵的 AI 生图/生视频环节。
     """
     
     def __init__(self, core):
@@ -98,22 +99,22 @@ class AssetBasedPipeline(LinearVideoPipeline):
         **kwargs
     ) -> PipelineContext:
         """
-        Execute pipeline with user-provided assets
+        使用用户提供的素材执行资产驱动型视频生成流水线。
         
         Args:
-            assets: List of asset file paths
-            video_title: Video title
-            intent: Video intent/purpose (defaults to video_title)
-            duration: Target duration in seconds
-            source: Workflow source ("runninghub" or "selfhost")
-            bgm_path: Path to background music file (optional)
-            bgm_volume: BGM volume (0.0-1.0, default 0.2)
-            bgm_mode: BGM mode ("loop" or "once", default "loop")
-            progress_callback: Optional callback for progress updates
-            **kwargs: Additional parameters
+            assets: 用户上传或指定的素材文件路径列表。
+            video_title: 视频的主标题。
+            intent: 视频的营销意图/目的（如果未提供，默认使用 video_title）。
+            duration: 期望的视频总时长（秒）。
+            source: 资产分析服务使用的大模型后端来源 ("runninghub" 或 "selfhost")。
+            bgm_path: 背景音乐文件路径（可选）。
+            bgm_volume: 背景音乐的音量大小 (0.0-1.0，默认为 0.2)。
+            bgm_mode: 背景音乐模式 ("loop" 循环 或 "once" 单次，默认 "loop")。
+            progress_callback: 用于状态回调的可选进度函数。
+            **kwargs: 透传的其他附加参数。
         
         Returns:
-            Pipeline context with generated video
+            PipelineContext: 包含了生成完毕视频路径的上下文对象。
         """
         from pixelle_video.pipelines.linear import PipelineContext
         
@@ -163,13 +164,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def setup_environment(self, context: PipelineContext) -> PipelineContext:
         """
-        Analyze uploaded assets and build asset index
-        
-        Args:
-            context: Pipeline context with assets list
-        
-        Returns:
-            Updated context with asset_index
+        分析上传的用户素材并建立资产索引表。
         """
         # Create isolated task directory
         task_dir, task_id = create_task_output_dir()
@@ -286,13 +281,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def determine_title(self, context: PipelineContext) -> PipelineContext:
         """
-        Use user-provided title if available, otherwise leave empty
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with title (may be empty)
+        使用用户提供的标题（如果没提供则留空）。
         """
         title = context.request.get("video_title")
         
@@ -307,15 +296,8 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def generate_content(self, context: PipelineContext) -> PipelineContext:
         """
-        Generate video script using LLM with structured output
-        
-        LLM directly assigns assets to scenes - no complex matching logic needed.
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with generated script (scenes already have asset_path assigned)
+        利用具有结构化输出能力的 LLM 根据资产索引库生成匹配各个画面的视频脚本。
+        LLM 会直接把各个资产与对应的推销旁白直接匹配好，不需要我们进行二次复杂的重整。
         """
         from pixelle_video.prompts.asset_script_generation import build_asset_script_prompt
         
@@ -399,16 +381,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def plan_visuals(self, context: PipelineContext) -> PipelineContext:
         """
-        Prepare matched scenes from LLM-generated script
-        
-        Since LLM already assigned asset_path in generate_content, this method
-        simply converts the script format to matched_scenes format.
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with matched_scenes
+        梳理从 LLM 获取的包含分配好素材的结构化脚本，准备进入制作环节。
         """
         logger.info("🎯 Preparing scene-asset mapping...")
         
@@ -436,13 +409,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def initialize_storyboard(self, context: PipelineContext) -> PipelineContext:
         """
-        Initialize storyboard from matched scenes
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with storyboard
+        基于匹配好的场景实例化剧本分镜对象。
         """
         from pixelle_video.models.storyboard import (
             Storyboard,
@@ -462,9 +429,9 @@ class AssetBasedPipeline(LinearVideoPipeline):
         context.narrations = all_narrations
         
         # Get template dimensions
-        # Use asset_default.html template which supports both image and video assets
+        # Use image_asset_default.html template which supports both image and video assets
         # (conditionally shows background image or provides transparent overlay)
-        template_name = "1080x1920/asset_default.html"
+        template_name = "1080x1920/image_asset_default.html"
         # Extract dimensions from template name (e.g., "1080x1920")
         try:
             dims = template_name.split("/")[0].split("x")
@@ -512,7 +479,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
             frame = StoryboardFrame(
                 index=i,
                 narration=main_narration,
-                image_prompt=None,  # We're using user assets, not generating images
+                image_prompt=None,  # 我们使用的是真实的用户素材，不需要传这个生成用的提示词了
                 created_at=datetime.now()
             )
             
@@ -542,13 +509,9 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def produce_assets(self, context: PipelineContext) -> PipelineContext:
         """
-        Generate scene videos using FrameProcessor (asset + multiple narrations + template)
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with processed frames
+        基于原有的图片或视频素材，配合 TTS 语音与 HTML 排版生成所有视频片段组合。
+        此流程中通过将 `FrameProcessor` 处理提前截断（因为 image_path 已经被填补了真实素材，底层判断时会自动跳过大模型画图耗时阶段），
+        实现快速包装出分段小片段。
         """
         logger.info("🎬 Producing scene videos...")
         
@@ -735,7 +698,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
                 action="video"
             ))
             
-            # Use FrameProcessor for proper composition
+            # 使用统一的 FrameProcessor （由于已有文件，会自动跳过生成阶段进入排版叠图阶段）
             processed_frame = await self.core.frame_processor(
                 frame=frame,
                 storyboard=storyboard,
@@ -768,13 +731,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def post_production(self, context: PipelineContext) -> PipelineContext:
         """
-        Concatenate scene videos and add BGM
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Updated context with final video path
+        拼合所有基于用户原画包装后的短片段，以及附加上全局 BGM。
         """
         logger.info("🎞️ Concatenating scenes...")
         
@@ -831,13 +788,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def finalize(self, context: PipelineContext) -> PipelineContext:
         """
-        Finalize and return result
-        
-        Args:
-            context: Pipeline context
-        
-        Returns:
-            Final context
+        流程收尾与执行完毕的资源信息落盘。
         """
         logger.success(f"🎉 Asset-based video generation complete!")
         logger.info(f"Video: {context.final_video_path}")
@@ -855,7 +806,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     
     async def _persist_task_data(self, ctx: PipelineContext):
         """
-        Persist task metadata and storyboard to filesystem for history tracking
+        持久化保存工作流中的入参元数据和完整的包含资源索引挂载的剧本模型，以便能够渲染回溯列表。
         """
         from pathlib import Path
         
@@ -923,7 +874,7 @@ class AssetBasedPipeline(LinearVideoPipeline):
     # Helper methods
     
     def _get_asset_type(self, path: Path) -> str:
-        """Determine asset type from file extension"""
+        """从用户提供文件的拓展名判定它的物理类型类别（是图还是视频流）"""
         image_exts = {".jpg", ".jpeg", ".png", ".gif", ".webp"}
         video_exts = {".mp4", ".mov", ".avi", ".mkv", ".webm"}
         
@@ -1039,4 +990,4 @@ class AssetBasedPipeline(LinearVideoPipeline):
         except Exception as exc:
             logger.warning(f"Failed to probe video duration for {video_path}: {exc}")
             return 0.0
-    
+

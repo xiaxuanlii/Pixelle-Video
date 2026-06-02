@@ -12,6 +12,10 @@
 
 """
 Template utility functions for size parsing and template management
+
+模板引擎相关的辅助工具模块。
+提供对 HTML 模板的目录扫描、视频尺寸及类型推断的元数据解析功能，
+是连接业务层配置与前端展示控件的核心桥梁。
 """
 
 import os
@@ -32,38 +36,31 @@ logger = logging.getLogger(__name__)
 
 def parse_template_size(template_path: str) -> Tuple[int, int]:
     """
-    Parse video size from template path
+    从模板的目录名称中提取目标生成视频的分辨率尺寸。
+    
+    模板存放的标准规约约定，模板文件必须放在表示尺寸的文件夹内（如 `1080x1920/default.html`）。
     
     Args:
-        template_path: Template path like "templates/1080x1920/default.html"
-                      or "1080x1920/default.html"
+        template_path: 模板的相对路径标识。
     
     Returns:
-        Tuple of (width, height) in pixels
+        Tuple[int, int]: (宽度, 高度) 像素值。
     
     Raises:
-        ValueError: If template path format is invalid
-    
-    Examples:
-        >>> parse_template_size("templates/1080x1920/default.html")
-        (1080, 1920)
-        >>> parse_template_size("1920x1080/modern.html")
-        (1920, 1080)
+        ValueError: 当目录名称格式不是规范的 "WIDTHxHEIGHT" 时抛出。
     """
     path = Path(template_path)
     
-    # Get parent directory name (should be like "1080x1920")
+    # 获取父级目录名，理论上该名称即为尺寸标识
     dir_name = path.parent.name
     
-    # Special case: if parent is "templates", go up one more level
     if dir_name == "templates":
-        # This shouldn't happen in new structure, but handle it
         raise ValueError(
             f"Invalid template path format: {template_path}. "
             f"Expected format: 'WIDTHxHEIGHT/template.html' or 'templates/WIDTHxHEIGHT/template.html'"
         )
     
-    # Parse size from directory name
+    # 强制验证尺寸格式
     if 'x' not in dir_name:
         raise ValueError(
             f"Invalid size format in path: {template_path}. "
@@ -75,7 +72,7 @@ def parse_template_size(template_path: str) -> Tuple[int, int]:
         width = int(width_str)
         height = int(height_str)
         
-        # Sanity check
+        # 边界与理智检查防呆
         if width < 100 or height < 100 or width > 10000 or height > 10000:
             raise ValueError(f"Invalid size dimensions: {width}x{height}")
         
@@ -90,14 +87,10 @@ def parse_template_size(template_path: str) -> Tuple[int, int]:
 
 def list_available_sizes() -> List[str]:
     """
-    List all available video sizes (merged from templates/ and data/templates/)
+    合并列出系统中支持的所有排版尺寸规格。
     
     Returns:
-        List of size strings like ["1080x1920", "1920x1080", "1080x1080"]
-    
-    Examples:
-        >>> list_available_sizes()
-        ['1080x1920', '1920x1080', '1080x1080']
+        List[str]: 形如 ["1080x1080", "1080x1920"] 的字符串列表。
     """
     # Use new resource API to merge default and custom directories
     all_dirs = list_resource_dirs("templates")
@@ -112,7 +105,7 @@ def list_available_sizes() -> List[str]:
                 int(height)
                 sizes.append(dir_name)
             except (ValueError, AttributeError):
-                # Skip invalid directories
+                # 跳过格式不正确的冗余目录
                 continue
     
     return sorted(sizes)
@@ -120,17 +113,13 @@ def list_available_sizes() -> List[str]:
 
 def list_templates_for_size(size: str) -> List[str]:
     """
-    List all templates available for a given size (merged from templates/ and data/templates/)
+    获取某个特定尺寸目录下所有可用的 HTML 排版模板名称。
     
     Args:
-        size: Size string like "1080x1920"
+        size: 尺寸标识符。
     
     Returns:
-        List of template filenames (without path) like ["default.html", "modern.html"]
-    
-    Examples:
-        >>> list_templates_for_size("1080x1920")
-        ['cartoon.html', 'default.html', 'elegant.html', 'modern.html', ...]
+        List[str]: 文件名列表。
     """
     # Use new resource API to merge default and custom templates
     all_files = list_resource_files("templates", size)
@@ -143,21 +132,7 @@ def list_templates_for_size(size: str) -> List[str]:
 
 def get_template_full_path(size: str, template_name: str) -> str:
     """
-    Get full template path from size and template name (checks data/templates/ first, then templates/)
-    
-    Args:
-        size: Size string like "1080x1920"
-        template_name: Template filename like "default.html"
-    
-    Returns:
-        Full path like "templates/1080x1920/default.html" or "data/templates/1080x1920/default.html"
-    
-    Raises:
-        FileNotFoundError: If template file doesn't exist in either location
-    
-    Examples:
-        >>> get_template_full_path("1080x1920", "default.html")
-        'templates/1080x1920/default.html'
+    通过底层 os_util 函数级联查询，获得某个尺寸下特定模板的绝对物理路径。
     """
     # Use new resource API to search custom first, then default
     try:
@@ -171,54 +146,32 @@ def get_template_full_path(size: str, template_name: str) -> str:
 
 
 class TemplateDisplayInfo(BaseModel):
-    """Template display information for UI layer"""
+    """用于前端展示和渲染交互选项卡的模板元数据对象"""
     
-    name: str = Field(..., description="Template name without extension")
-    size: str = Field(..., description="Size string like '1080x1920'")
-    width: int = Field(..., description="Width in pixels")
-    height: int = Field(..., description="Height in pixels")
+    name: str = Field(..., description="模板文件名")
+    size: str = Field(..., description="所属的分辨率尺寸目录名称")
+    width: int = Field(..., description="最终视频画面宽度")
+    height: int = Field(..., description="最终视频画面高度")
     orientation: Literal['portrait', 'landscape', 'square'] = Field(
         ..., 
-        description="Video orientation"
+        description="画幅朝向标识 (竖屏、横屏、方屏)"
     )
     is_standard: bool = Field(
         ..., 
-        description="True only for standard sizes: 1080x1920, 1920x1080, 1080x1080"
+        description="该尺寸规格是否为常见的主流标准规格（用于 UI 置顶等）"
     )
 
 
 class TemplateInfo(BaseModel):
-    """Complete template information with path and display info"""
+    """完整的带有 API 交互路径标识的模板描述模型"""
     
-    template_path: str = Field(..., description="Full template path like '1080x1920/default.html'")
-    display_info: TemplateDisplayInfo = Field(..., description="Display information")
+    template_path: str = Field(..., description="系统内部使用的带有尺寸前缀的请求路径")
+    display_info: TemplateDisplayInfo = Field(..., description="供前端展示解析的具体配置元数据")
 
 
 def format_template_display_info(template_name: str, size: str) -> TemplateDisplayInfo:
     """
-    Format template display information for UI
-    
-    Returns structured data for UI layer to handle display and i18n.
-    
-    Args:
-        template_name: Template filename like "default.html"
-        size: Size string like "1080x1920"
-    
-    Returns:
-        TemplateDisplayInfo object with name, size, dimensions, orientation, and standard flag
-    
-    Examples:
-        >>> info = format_template_display_info("default.html", "1080x1920")
-        >>> info.name
-        'default'
-        >>> info.is_standard
-        True
-        
-        >>> info = format_template_display_info("custom.html", "1080x1921")
-        >>> info.orientation
-        'portrait'
-        >>> info.is_standard
-        False
+    提取并格式化有关模板和尺寸信息的展示元数据。
     """
     # Keep full template name with .html extension
     name = template_name
@@ -249,17 +202,7 @@ def format_template_display_info(template_name: str, size: str) -> TemplateDispl
 
 def get_all_templates_with_info() -> List[TemplateInfo]:
     """
-    Get all templates with their display information
-    
-    Returns:
-        List of TemplateInfo objects
-    
-    Example:
-        >>> templates = get_all_templates_with_info()
-        >>> for t in templates:
-        ...     print(f"{t.display_info.name} - {t.display_info.orientation}")
-        ...     print(f"  Path: {t.template_path}")
-        ...     print(f"  Standard: {t.display_info.is_standard}")
+    暴力的全局扫描器：获取并组合返回系统加载的所有模板的详细信息对象。
     """
     result = []
     sizes = list_available_sizes()
@@ -279,18 +222,7 @@ def get_all_templates_with_info() -> List[TemplateInfo]:
 
 def get_templates_grouped_by_size() -> dict:
     """
-    Get templates grouped by size
-    
-    Returns:
-        Dict with size as key, list of TemplateInfo as value
-        Ordered by orientation priority: portrait > landscape > square
-    
-    Example:
-        >>> grouped = get_templates_grouped_by_size()
-        >>> for size, templates in grouped.items():
-        ...     print(f"Size: {size}")
-        ...     for t in templates:
-        ...         print(f"  - {t.display_info.name}")
+    按尺寸分组返回所有的模板元数据（优先竖排显示）。
     """
     from collections import defaultdict
     
@@ -315,29 +247,18 @@ def get_templates_grouped_by_size() -> dict:
 
 def resolve_template_path(template_input: Optional[str]) -> str:
     """
-    Resolve template input to full path with validation (checks data/templates/ first, then templates/)
+    将松散的用户输入解析/猜测为服务器上真实的模板本地物理路径。
     
-    Args:
-        template_input: Can be:
-            - None: Use default "1080x1920/image_default.html"
-            - "template.html": Use default size + this template
-            - "1080x1920/template.html": Full relative path
-            - "templates/1080x1920/template.html": Absolute-ish path (legacy)
-            - "data/templates/1080x1920/template.html": Custom path (legacy)
+    兼容并支持的输入形式:
+        - None: 系统将自动回退使用默认的竖版图文模板 "1080x1920/image_default.html"。
+        - "template.html": 仅传文件名时，将回退使用默认竖屏尺寸的同名模板。
+        - "1080x1920/template.html": （推荐）标准的资源定位标识。
     
     Returns:
-        Resolved full path (custom if exists, otherwise default)
-    
+        str: 真实的绝对路径。
+        
     Raises:
-        FileNotFoundError: If template doesn't exist in either location
-    
-    Examples:
-        >>> resolve_template_path(None)
-        'templates/1080x1920/image_default.html'
-        >>> resolve_template_path("image_modern.html")
-        'templates/1080x1920/image_modern.html'
-        >>> resolve_template_path("1920x1080/image_default.html")
-        'templates/1920x1080/image_default.html'
+        FileNotFoundError: 未匹配到可用模板资源时。
     """
     # Default case
     if template_input is None:
@@ -388,26 +309,18 @@ def resolve_template_path(template_input: Optional[str]) -> str:
 
 def get_template_type(template_name: str) -> Literal['static', 'image', 'video']:
     """
-    Detect template type from template filename
+    通过文件名命名前缀探测模板对于底层媒体资产消耗的诉求类型。
     
-    Template naming convention:
-    - static_*.html: Static style templates (no AI-generated media)
-    - image_*.html: Templates requiring AI-generated images
-    - video_*.html: Templates requiring AI-generated videos
+    命名规约:
+    - static_*.html: 纯文本/静态排版，跳过耗时耗钱的大模型背景图和视频的生成。
+    - image_*.html: 标准视频，需要调用 AI 绘画引擎生成与之匹配的背景底图。
+    - video_*.html: 动态模板，需要调用更高级的视频模型生成动态背景素材。
     
     Args:
-        template_name: Template filename like "image_default.html" or "video_simple.html"
+        template_name: 模板文件名。
     
     Returns:
-        Template type: 'static', 'image', or 'video'
-    
-    Examples:
-        >>> get_template_type("static_simple.html")
-        'static'
-        >>> get_template_type("image_default.html")
-        'image'
-        >>> get_template_type("video_simple.html")
-        'video'
+        探测出的类型枚举标识。
     """
     name = Path(template_name).name
     
@@ -430,22 +343,7 @@ def filter_templates_by_type(
     templates: List[TemplateInfo], 
     template_type: Literal['static', 'image', 'video']
 ) -> List[TemplateInfo]:
-    """
-    Filter templates by type
-    
-    Args:
-        templates: List of TemplateInfo objects
-        template_type: Type to filter by ('static', 'image', or 'video')
-    
-    Returns:
-        Filtered list of TemplateInfo objects
-    
-    Examples:
-        >>> all_templates = get_all_templates_with_info()
-        >>> image_templates = filter_templates_by_type(all_templates, 'image')
-        >>> len(image_templates) > 0
-        True
-    """
+    """过滤只留下符合指定前缀类型的模板列表"""
     filtered = []
     for t in templates:
         template_name = t.display_info.name
@@ -457,23 +355,7 @@ def filter_templates_by_type(
 def get_templates_grouped_by_size_and_type(
     template_type: Optional[Literal['static', 'image', 'video']] = None
 ) -> dict:
-    """
-    Get templates grouped by size, optionally filtered by type
-    
-    Args:
-        template_type: Optional type filter ('static', 'image', or 'video')
-    
-    Returns:
-        Dict with size as key, list of TemplateInfo as value
-        Ordered by orientation priority: portrait > landscape > square
-    
-    Examples:
-        >>> # Get all templates
-        >>> all_grouped = get_templates_grouped_by_size_and_type()
-        
-        >>> # Get only image templates
-        >>> image_grouped = get_templates_grouped_by_size_and_type('image')
-    """
+    """提供带有类型过滤功能的分组抓取模板元数据集的服务函数"""
     from collections import defaultdict
     
     templates = get_all_templates_with_info()
@@ -498,4 +380,3 @@ def get_templates_grouped_by_size_and_type(
         sorted_grouped[size] = sorted(grouped[size], key=lambda t: t.display_info.name)
     
     return sorted_grouped
-

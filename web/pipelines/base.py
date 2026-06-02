@@ -13,45 +13,47 @@
 """
 Pipeline UI Base & Registry
 
-Defines the PipelineUI protocol and the registration mechanism.
+流水线前端交互界面的基类与系统注册表。
+利用面向对象的形式提供了一个标准化扩展接口，方便插拔新的流水线专属界面（如“文字生视频”，“图片生视频”，“短剧系统”等）。
 """
 
 from typing import Dict, Any, List, Type
 
 class PipelineUI:
     """
-    Base class for Pipeline UI plugins.
+    负责在网页中描述某个流水线独有表单属性和渲染逻辑的抽象基类插件。
     
-    Each pipeline should implement a subclass to define its own full-page UI.
+    每一个新的流水线场景如果需要被前台用户触碰和发起交互，就必须派生此子类。
+    并在其内部完成 `st.text_input()`, `st.button()` 等专属界面的勾勒工作。
     """
-    name: str = "base"
-    display_name: str = "Base Pipeline"
-    icon: str = "🔌"
-    description: str = ""
+    name: str = "base"                          # 与后端的系统级 pipeline_name 强制对应
+    display_name: str = "Base Pipeline"         # 选项卡上的简短展示名称
+    icon: str = "🔌"                            # 选项卡的表情符号
+    description: str = ""                       # 点进选项卡后首行说明的帮助文案
     
     def render(self, pixelle_video: Any):
         """
-        Render the full page content for this pipeline (below settings).
+        该前端组件核心的页面组件绘制与表单状态维护代码。
         
         Args:
-            pixelle_video: The initialized PixelleVideoCore instance.
+            pixelle_video: The initialized PixelleVideoCore instance. (底层能力调用网关)
         """
         raise NotImplementedError
 
 
-# ==================== Registry ====================
+# ==================== Registry (组件注册装配表) ====================
 
 _pipeline_uis: Dict[str, PipelineUI] = {}
 
 def register_pipeline_ui(ui_class: Type[PipelineUI]):
-    """Register a pipeline UI class"""
+    """提供给所有子组件扫描挂载的入口，将组件暴露到大盘供 App 读取。"""
     instance = ui_class()
     _pipeline_uis[instance.name] = instance
 
 def get_pipeline_ui(name: str) -> PipelineUI:
-    """Get a pipeline UI instance by name"""
+    """按标识取出已装配的唯一组件单例"""
     return _pipeline_uis.get(name)
 
 def get_all_pipeline_uis() -> List[PipelineUI]:
-    """Get all registered pipeline UI instances"""
+    """批量交付所有的流水线视图供 Tab 组渲染"""
     return list(_pipeline_uis.values())

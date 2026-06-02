@@ -13,42 +13,41 @@
 """
 Asset-based video script generation prompt
 
-For generating video scripts based on user-provided assets.
+针对“资产驱动生成”工作流（AssetBasedPipeline）专属的 LLM 提示词构建器。
+将系统探测出的已有素材特征与用户的带货宣发意图结合，指导大模型编纂具有对应关联性的脚本分镜。
 """
 
 
-ASSET_SCRIPT_GENERATION_PROMPT = """You are a professional video script creator. Based on the user's video intent and available assets, generate a {duration}-second video script. Before doing so, you need to detect the user's input language - if it's English, then all copy must be in English. Strictly follow the user's input language type as the standard, ensuring consistent and corresponding copy!
+ASSET_SCRIPT_GENERATION_PROMPT = """你是一个专业的视频短剧脚本编剧。基于用户的营销意图和系统现有的媒体资产清单，请为一个时长约为 {duration} 秒的短视频编写营销脚本。非常关键的一点：在生成之前，请先侦测用户输入的自然语言语种，如果用户的意图描述是英文，你后续的所有旁白和台词都必须完全使用纯英文输出；如果是中文，则使用中文。请严格对齐多语言的输出！
 
-## Requirements
-{title_section}- Video Intent: {intent}
-- Target Duration: {duration} seconds
+## 生成约束
+{title_section}- 视频营销意图/目的: {intent}
+- 期望视频总时长: 约 {duration} 秒
 
-## Available Assets (use exact paths in output)
+## 可用媒体素材资产库 (请在输出中原样引用提取出的精确路径)
 {assets_text}
 
-## Creation Guidelines
-1. Strictly output copy according to the user's input language type - if input is English, output must be English, and so on
-2. Determine the number of scenes based on target duration (typically 5-15 seconds per scene)
-3. Assign one asset from available assets to each scene
-4. Each scene can contain 1-3 narration sentences
-5. Try to use all available assets, but assets can be reused if needed
-6. Total duration of all scenes should approximately equal {duration} seconds
+## 创作指引
+1. 语言绝对一致性：输入的意图是什么语种，你的旁白输出必须是什么语种
+2. 合理估计时长：推断以实现目标 {duration} 秒大概需要切分多少个镜头 (每个镜头建议 5-15 秒左右为宜)
+3. 自动归位匹配：为每一个镜头分配一个最能表达当前文案意境的素材资产
+4. 旁白设计：每个镜头允许包含 1 到 3 句短句作为台词旁白
+5. 丰富使用库内素材：尽量把素材库中的视频和图片用全，但遇到不够用的情况允许特定资产在多镜头被重复借用展示
+6. 严格校对最终时长的总和应当与 {duration} 秒期望值保持大体相近
 {title_instruction}
 
-## Language Consistency Requirements (Strictly Enforce)
-- Narration language must match the user's input video intent
-- If video intent is in Chinese, narration must be in Chinese
-- If video intent is in English, narration must be in English
-- Unless the video intent explicitly specifies an output language, strictly follow the original language of the intent
+## 语言风格一致性警告 (必须遵守)
+- 若视频意图是用中文描述，所有的配音台词必须是中文
+- 若视频意图是用纯正英语描述，你不得混用语言，旁白必须地道地表现为全英语
 
-## Output Requirements
-Provide for each scene:
-- scene_number: Scene number (starting from 1)
-- asset_path: Exact path selected from available assets list
-- narrations: Array containing 1-3 narration sentences
-- duration: Estimated duration (seconds)
+## 结构化输出规范
+你必须且只能输出包含以下字段的 JSON 数组，每个对象对应一个镜头：
+- scene_number: 镜头序列号 (从 1 开始)
+- asset_path: 从上方素材库中挑出来的绝对或相对文件路径字符串
+- narrations: 一个存放 1-3 句短台词的字符串数组
+- duration: 你预估该镜头朗读这些文字所需的大约秒数
 
-Now please begin generating the video script:"""
+现在请立刻开始创作 JSON 格式的脚本数据:"""
 
 
 def build_asset_script_prompt(
@@ -58,19 +57,19 @@ def build_asset_script_prompt(
     title: str = ""
 ) -> str:
     """
-    Build asset-based script generation prompt
+    组装资产型脚本的智能推断构建提示词。
     
     Args:
-        intent: Video intent/purpose
-        duration: Target duration in seconds
-        assets_text: Formatted text of available assets with descriptions
-        title: Optional video title
+        intent: 核心视频宣发诉求
+        duration: 要求的视频整体持续时间
+        assets_text: 已经整理好的所有图片/视频的路径与预探测分析描述的字符串快照
+        title: (可选) 提供的一个短标题来约束文案风格方向
     
     Returns:
-        Formatted prompt
+        str: 给大语言模型食用的提示词全文
     """
-    title_section = f"- Video Title: {title}\n" if title else ""
-    title_instruction = f"6. Narration content should be consistent with the video title: {title}\n" if title else ""
+    title_section = f"- 核心标题约束: {title}\n" if title else ""
+    title_instruction = f"6. 生成的主干旁白内容应该尽量向视频核心标题看齐并收拢立意: {title}\n" if title else ""
     
     return ASSET_SCRIPT_GENERATION_PROMPT.format(
         duration=duration,

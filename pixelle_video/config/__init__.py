@@ -13,19 +13,20 @@
 """
 Pixelle-Video Configuration System
 
-Unified configuration management with Pydantic validation.
+系统配置中心包的初始化文件。
+统一向外部业务模块暴露验证过的数据结构类型和操作方法。
 
 Usage:
     from pixelle_video.config import config_manager
     
-    # Access config (type-safe)
+    # 类型安全地读取最新配置
     api_key = config_manager.config.llm.api_key
     
-    # Update config
+    # 高级合并写入与落盘
     config_manager.update({"llm": {"api_key": "xxx"}})
     config_manager.save()
     
-    # Validate
+    # 配置可用性探针
     if config_manager.validate():
         print("Config is valid!")
 """
@@ -33,19 +34,23 @@ from .schema import PixelleVideoConfig, LLMConfig, ComfyUIConfig, TTSSubConfig, 
 from .manager import ConfigManager
 from .loader import load_config_dict, save_config_dict
 
-# Global singleton instance
+# 导出并实例化全局唯一的配置管理器，供系统其余部分 Import 及调用
 config_manager = ConfigManager()
 
 __all__ = [
+    # 模型定义
     "PixelleVideoConfig",
     "LLMConfig", 
     "ComfyUIConfig",
     "TTSSubConfig",
     "ImageSubConfig",
     "VideoSubConfig",
+    
+    # 管理器与全局单例对象
     "ConfigManager",
     "config_manager",
+    
+    # 原生底层函数暴露
     "load_config_dict",
     "save_config_dict",
 ]
-

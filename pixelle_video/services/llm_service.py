@@ -13,7 +13,9 @@
 """
 LLM (Large Language Model) Service - Direct OpenAI SDK implementation
 
-Supports structured output via response_type parameter (Pydantic model).
+大语言模型（LLM）服务层 - 基于 OpenAI SDK 的直接封装。
+为系统提供文本续写、角色扮演对话以及结构化数据提取等能力。
+支持通过 `response_type` 参数（传入 Pydantic 模型）来强制输出结构化 JSON 数据。
 """
 
 import json
@@ -25,31 +27,30 @@ from pydantic import BaseModel
 from loguru import logger
 
 
+# 定义泛型 T，用于约束和推断返回的 Pydantic 模型类型
 T = TypeVar("T", bound=BaseModel)
 
 
 class LLMService:
     """
-    LLM (Large Language Model) service
+    大语言模型 (LLM) 核心服务类。
     
-    Direct implementation using OpenAI SDK. No capability layer needed.
+    直接使用官方的 openai-python SDK 进行封装，不需要经过中间件（ComfyKit 等）。
+    通过配置不同的 `base_url` 和 `api_key`，天然兼容市面上所有兼容 OpenAI 接口规范的模型提供商：
+    - OpenAI 官方 (gpt-4o, gpt-4o-mini, gpt-3.5-turbo)
+    - 阿里云通义千问 Qwen (qwen-max, qwen-plus, qwen-turbo)
+    - Anthropic Claude (claude-sonnet-3-5)
+    - 深度求索 DeepSeek (deepseek-chat)
+    - 月之暗面 Kimi (moonshot-v1-8k 等)
+    - Ollama 本地开源大模型 (llama3, qwen2, mistral) - 免费且支持完全离线！
     
-    Supports all OpenAI SDK compatible providers:
-    - OpenAI (gpt-4o, gpt-4o-mini, gpt-3.5-turbo)
-    - Alibaba Qwen (qwen-max, qwen-plus, qwen-turbo)
-    - Anthropic Claude (claude-sonnet-4-5, claude-opus-4, claude-haiku-4)
-    - DeepSeek (deepseek-chat)
-    - Moonshot Kimi (moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k)
-    - Ollama (llama3.2, qwen2.5, mistral, codellama) - FREE & LOCAL!
-    - Any custom provider with OpenAI-compatible API
-    
-    Usage:
-        # Direct call
-        answer = await pixelle_video.llm("Explain atomic habits")
+    使用示例:
+        # 直接进行文本问答
+        answer = await pixelle_video.llm("解释一下什么是原子习惯")
         
-        # With parameters
+        # 携带超参数
         answer = await pixelle_video.llm(
-            prompt="Explain atomic habits in 3 sentences",
+            prompt="用三句话总结《百年孤独》的剧情",
             temperature=0.7,
             max_tokens=2000
         )
@@ -57,25 +58,25 @@ class LLMService:
     
     def __init__(self, config: dict):
         """
-        Initialize LLM service
+        初始化 LLM 服务。
         
         Args:
-            config: Full application config dict (kept for backward compatibility)
+            config: 完整的应用程序配置字典（为了向后兼容而保留参数签名）。
         """
-        # Note: We no longer cache config here to support hot reload
-        # Config is read dynamically from config_manager in _get_config_value()
+        # 注意：此处不再将配置缓存在实例属性中，而是每次调用时实时从全局 config_manager 中读取。
+        # 这样设计是为了支持在不重启服务的情况下进行配置热重载（Hot Reload）。
         self._client: Optional[AsyncOpenAI] = None
     
     def _get_config_value(self, key: str, default=None):
         """
-        Get config value dynamically from config_manager (supports hot reload)
+        从全局单例 config_manager 中动态读取配置项的值。
         
         Args:
-            key: Config key name
-            default: Default value if not found
+            key: 配置键名（例如 "api_key", "base_url"）。
+            default: 如果配置中未找到该键，返回的默认值。
         
         Returns:
-            Config value
+            获取到的配置值。
         """
         from pixelle_video.config import config_manager
         return getattr(config_manager.config.llm, key, default)
@@ -86,29 +87,29 @@ class LLMService:
         base_url: Optional[str] = None,
     ) -> AsyncOpenAI:
         """
-        Create OpenAI client
+        创建 AsyncOpenAI 异步 HTTP 客户端实例。
         
         Args:
-            api_key: API key (optional, uses config if not provided)
-            base_url: Base URL (optional, uses config if not provided)
+            api_key: (可选) 会话级 API 密钥。若不提供，则使用系统全局配置。
+            base_url: (可选) 会话级 Base URL。若不提供，则使用系统全局配置。
         
         Returns:
-            AsyncOpenAI client instance
+            AsyncOpenAI 客户端实例。
         """
-        # Get API key (priority: parameter > config)
+        # 获取最终使用的 API Key（优先级：方法传参 > 全局配置 > 占位符）
         final_api_key = (
             api_key
             or self._get_config_value("api_key")
-            or "dummy-key"  # Ollama doesn't need real key
+            or "dummy-key"  # 针对本地 Ollama 等不需要密钥的环境，提供占位符避免 SDK 报错
         )
         
-        # Get base URL (priority: parameter > config)
+        # 获取最终使用的 Base URL（优先级：方法传参 > 全局配置）
         final_base_url = (
             base_url
             or self._get_config_value("base_url")
         )
         
-        # Create client
+        # 初始化客户端
         client_kwargs = {"api_key": final_api_key}
         if final_base_url:
             client_kwargs["base_url"] = final_base_url
@@ -127,53 +128,53 @@ class LLMService:
         **kwargs
     ) -> Union[str, T]:
         """
-        Generate text using LLM
+        核心调用方法：向大语言模型发送请求并获取回复。
         
         Args:
-            prompt: The prompt to generate from
-            api_key: API key (optional, uses config if not provided)
-            base_url: Base URL (optional, uses config if not provided)
-            model: Model name (optional, uses config if not provided)
-            temperature: Sampling temperature (0.0-2.0). Lower is more deterministic.
-            max_tokens: Maximum tokens to generate
-            response_type: Optional Pydantic model class for structured output.
-                          If provided, returns parsed model instance instead of string.
-            **kwargs: Additional provider-specific parameters
+            prompt: 发送给大模型的提示词（问题或指令）。
+            api_key: 覆盖当前请求的 API Key。
+            base_url: 覆盖当前请求的 Base URL。
+            model: 覆盖当前请求的模型名称。
+            temperature: 采样温度（0.0-2.0）。值越低，输出越稳定、保守；值越高，输出越具有创造性和随机性。
+            max_tokens: 允许生成的最大 Token 数量。
+            response_type: (核心特性) 指定一个 Pydantic 数据模型类。如果提供，
+                           底层会引导模型输出符合该结构的 JSON，并自动反序列化为该类实例返回。
+            **kwargs: 其他支持传递给底层 SDK 的高级参数。
         
         Returns:
-            Generated text (str) or parsed Pydantic model instance (if response_type provided)
+            Union[str, T]: 默认返回字符串文本。如果提供了 `response_type`，则返回对应的 Pydantic 模型实例。
         
         Examples:
-            # Basic text generation
-            answer = await pixelle_video.llm("Explain atomic habits")
+            # 基础文本生成
+            answer = await pixelle_video.llm("解释一下原子习惯")
             
-            # Structured output with Pydantic model
+            # 结构化数据输出 (Structured output)
             class MovieReview(BaseModel):
                 title: str
                 rating: int
                 summary: str
             
             review = await pixelle_video.llm(
-                prompt="Review the movie Inception",
+                prompt="请为电影《盗梦空间》写一篇短评",
                 response_type=MovieReview
             )
-            print(review.title)  # Structured access
+            print(review.title)  # 以面向对象的方式安全访问结果
         """
-        # Create client (new instance each time to support parameter overrides)
+        # 每次调用都创建新实例，以完美支持并发时不同请求携带不同配置的需求
         client = self._create_client(api_key=api_key, base_url=base_url)
         
-        # Get model (priority: parameter > config)
+        # 获取要调用的具体模型（优先级：方法传参 > 全局配置 > 默认兜底）
         final_model = (
             model
             or self._get_config_value("model")
-            or "gpt-3.5-turbo"  # Default fallback
+            or "gpt-3.5-turbo"
         )
         
         logger.debug(f"LLM call: model={final_model}, base_url={client.base_url}, response_type={response_type}")
         
         try:
             if response_type is not None:
-                # Structured output mode - try beta.chat.completions.parse first
+                # 开启结构化输出模式：引导模型按需输出 JSON，并执行解析
                 return await self._call_with_structured_output(
                     client=client,
                     model=final_model,
@@ -184,7 +185,7 @@ class LLMService:
                     **kwargs
                 )
             else:
-                # Standard text output mode
+                # 标准纯文本输出模式
                 response = await client.chat.completions.create(
                     model=final_model,
                     messages=[{"role": "user", "content": prompt}],
@@ -213,28 +214,30 @@ class LLMService:
         **kwargs
     ) -> T:
         """
-        Call LLM with structured output support
+        内部方法：支持广泛兼容性的结构化数据生成机制。
         
-        Uses JSON schema instruction appended to prompt for maximum compatibility
-        across all OpenAI-compatible providers (Qwen, DeepSeek, etc.).
+        考虑到除了 OpenAI 官方以外，很多兼容厂商（如 Qwen, DeepSeek, Ollama）
+        并不完全支持原生的 `beta.chat.completions.parse` 强约束协议。
+        为了最大化兼容性，我们采用“软约束”策略：将 Pydantic 模型的 JSON Schema
+        转换为强硬的指令词（Prompt），并追加到用户输入之后。
         
         Args:
-            client: OpenAI client
-            model: Model name
-            prompt: The prompt
-            response_type: Pydantic model class
-            temperature: Sampling temperature
-            max_tokens: Max tokens
-            **kwargs: Additional parameters
+            client: OpenAI 客户端实例。
+            model: 模型名称。
+            prompt: 原始提示词。
+            response_type: 目标 Pydantic 数据模型类。
+            temperature: 采样温度。
+            max_tokens: 最大生成数量。
+            **kwargs: 额外透传参数。
         
         Returns:
-            Parsed Pydantic model instance
+            目标 Pydantic 模型类的实例化对象。
         """
-        # Build JSON schema instruction and append to prompt
+        # 构建 JSON Schema 结构描述指令，并硬塞到用户的提示词之后
         json_schema_instruction = self._get_json_schema_instruction(response_type)
         enhanced_prompt = f"{prompt}\n\n{json_schema_instruction}"
         
-        # Call LLM with enhanced prompt
+        # 发起常规对话请求
         response = await client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": enhanced_prompt}],
@@ -246,57 +249,63 @@ class LLMService:
         
         logger.debug(f"Structured output response length: {len(content)} chars")
         
-        # Parse JSON from response content
+        # 将返回的文本执行容错解析并实例化为 Pydantic 对象
         return self._parse_response_as_model(content, response_type)
     
     def _get_json_schema_instruction(self, response_type: Type[T]) -> str:
         """
-        Generate JSON schema instruction for LLM fallback mode
+        内部辅助方法：提取 Pydantic 模型的 Schema，并生成指导大模型输出的指令。
         
         Args:
-            response_type: Pydantic model class
+            response_type: 目标 Pydantic 模型类。
         
         Returns:
-            Formatted instruction string with JSON schema
+            str: 格式化好的系统级指令词。
         """
         try:
-            # Get JSON schema from Pydantic model
+            # 提取规范的 JSON Schema 结构
             schema = response_type.model_json_schema()
             schema_str = json.dumps(schema, indent=2, ensure_ascii=False)
             
-            return f"""## IMPORTANT: JSON Output Format Required
-You MUST respond with ONLY a valid JSON object (no markdown, no extra text).
-The JSON must strictly follow this schema:
+            return f"""## 重要指示：必须使用 JSON 格式输出
+你必须只返回一个有效的 JSON 对象（不需要使用 markdown 代码块，不需要任何多余的解释文本）。
+返回的 JSON 结构必须严格符合以下 Schema 定义：
 
 ```json
 {schema_str}
 ```
 
-Output ONLY the JSON object, nothing else."""
+请再次确认：只输出 JSON 对象本身，不要包含其他任何字符。"""
         except Exception as e:
             logger.warning(f"Failed to generate JSON schema: {e}")
-            return """## IMPORTANT: JSON Output Format Required
-You MUST respond with ONLY a valid JSON object (no markdown, no extra text)."""
+            return """## 重要指示：必须使用 JSON 格式输出
+你必须只返回一个有效的 JSON 对象（不需要使用 markdown 代码块，不需要任何多余的解释文本）。"""
     
     def _parse_response_as_model(self, content: str, response_type: Type[T]) -> T:
         """
-        Parse LLM response content as Pydantic model
+        内部辅助方法：带有多重容错机制的 JSON 提取与解析器。
+        
+        因为各种大模型的智商参差不齐，有时候会忽略指令，在 JSON 前后带上废话。
+        这个方法会尝试多种正则策略，把真正的 JSON 对象“扣”出来。
         
         Args:
-            content: Raw LLM response text
-            response_type: Target Pydantic model class
+            content: 大模型返回的原始文本。
+            response_type: 需要反序列化的目标 Pydantic 类。
         
         Returns:
-            Parsed model instance
+            反序列化成功的 Pydantic 实例。
+            
+        Raises:
+            ValueError: 所有的提取尝试都失败时抛出。
         """
-        # Try direct JSON parsing first
+        # 策略 1: 模型很听话，返回的就是纯净的 JSON 字符串
         try:
             data = json.loads(content)
             return response_type.model_validate(data)
         except json.JSONDecodeError:
             pass
         
-        # Try extracting from markdown code block
+        # 策略 2: 模型使用了 Markdown 语法把 JSON 包起来了（如 ```json ... ```）
         json_pattern = r'```(?:json)?\s*([\s\S]+?)\s*```'
         match = re.search(json_pattern, content, re.DOTALL)
         if match:
@@ -306,7 +315,7 @@ You MUST respond with ONLY a valid JSON object (no markdown, no extra text)."""
             except json.JSONDecodeError:
                 pass
         
-        # Try to find any JSON object in the text
+        # 策略 3: 最暴力的提取，直接寻找第一对最外层的大括号 {}
         brace_start = content.find('{')
         brace_end = content.rfind('}')
         if brace_start != -1 and brace_end > brace_start:
@@ -317,23 +326,21 @@ You MUST respond with ONLY a valid JSON object (no markdown, no extra text)."""
             except json.JSONDecodeError:
                 pass
         
+        # 实在救不回来了
         raise ValueError(f"Failed to parse LLM response as {response_type.__name__}: {content[:200]}...")
     
     @property
     def active(self) -> str:
         """
-        Get active model name
+        获取当前正处于激活配置状态的大模型名称。
         
         Returns:
-            Active model name
-        
-        Example:
-            print(f"Using model: {pixelle_video.llm.active}")
+            当前生效的模型标识。
         """
         return self._get_config_value("model", "gpt-3.5-turbo")
     
     def __repr__(self) -> str:
-        """String representation"""
+        """调试时友好的对象字符串表示"""
         model = self.active
         base_url = self._get_config_value("base_url", "default")
         return f"<LLMService model={model!r} base_url={base_url!r}>"

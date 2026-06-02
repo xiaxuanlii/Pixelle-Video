@@ -12,6 +12,9 @@
 
 """
 Resource discovery API schemas
+
+此模块定义了用于查询系统内部资源的 API 数据模型，
+例如获取所有可用的工作流、HTML 画面排版模板以及背景音乐列表，供前端生成配置表单时使用。
 """
 
 from typing import List, Optional
@@ -19,51 +22,69 @@ from pydantic import BaseModel, Field
 
 
 class WorkflowInfo(BaseModel):
-    """Workflow information"""
-    name: str = Field(..., description="Workflow filename")
-    display_name: str = Field(..., description="Display name with source info")
-    source: str = Field(..., description="Source (runninghub or selfhost)")
-    path: str = Field(..., description="Full path to workflow file")
-    key: str = Field(..., description="Workflow key (source/name)")
-    workflow_id: Optional[str] = Field(None, description="RunningHub workflow ID (if applicable)")
+    """
+    工作流信息模型。
+    
+    描述了单个配置好的 AI 生成工作流（例如 TTS、生图、生视频的 JSON 配置文件）。
+    """
+    name: str = Field(..., description="工作流的原始文件名（如 'tts_edge.json'）")
+    display_name: str = Field(..., description="在前端 UI 上展示的友好名称（通常附带来源标识）")
+    source: str = Field(..., description="工作流文件的来源分类（如 'runninghub' 或 'selfhost'）")
+    path: str = Field(..., description="工作流文件在服务器上的绝对或相对路径")
+    key: str = Field(..., description="用于标识该工作流的唯一键名，格式通常为 'source/name'")
+    workflow_id: Optional[str] = Field(None, description="如果来源是 RunningHub，此处为其对应的工作流 ID（可选）")
 
 
 class WorkflowListResponse(BaseModel):
-    """Workflow list response"""
+    """
+    工作流列表响应模型。
+    """
     success: bool = True
     message: str = "Success"
-    workflows: List[WorkflowInfo] = Field(..., description="List of available workflows")
+    workflows: List[WorkflowInfo] = Field(..., description="系统当前扫描到的所有可用工作流列表")
 
 
 class TemplateInfo(BaseModel):
-    """Template information"""
-    name: str = Field(..., description="Template filename")
-    display_name: str = Field(..., description="Display name")
-    size: str = Field(..., description="Size (e.g., 1080x1920)")
-    width: int = Field(..., description="Width in pixels")
-    height: int = Field(..., description="Height in pixels")
-    orientation: str = Field(..., description="Orientation (portrait/landscape/square)")
-    path: str = Field(..., description="Full path to template file")
-    key: str = Field(..., description="Template key (size/name)")
+    """
+    HTML 画面排版模板信息模型。
+    
+    描述了单个可用于渲染视频帧画面的 HTML 模板及其尺寸元数据。
+    """
+    name: str = Field(..., description="模板的文件名称（如 'image_default.html'）")
+    display_name: str = Field(..., description="供前端展示的模板友好名称")
+    size: str = Field(..., description="模板所在目录代表的尺寸规格（如 '1080x1920'）")
+    width: int = Field(..., description="该模板对应的画面宽度（像素）")
+    height: int = Field(..., description="该模板对应的画面高度（像素）")
+    orientation: str = Field(..., description="画面方向标识（'portrait' 竖屏 / 'landscape' 横屏 / 'square' 方屏）")
+    path: str = Field(..., description="模板文件在服务器上的完整路径")
+    key: str = Field(..., description="用于请求渲染该模板的唯一标识，格式为 'size/name'")
 
 
 class TemplateListResponse(BaseModel):
-    """Template list response"""
+    """
+    模板列表响应模型。
+    """
     success: bool = True
     message: str = "Success"
-    templates: List[TemplateInfo] = Field(..., description="List of available templates")
+    templates: List[TemplateInfo] = Field(..., description="系统当前支持的所有排版模板列表")
 
 
 class BGMInfo(BaseModel):
-    """BGM information"""
-    name: str = Field(..., description="BGM filename")
-    path: str = Field(..., description="Full path to BGM file")
-    source: str = Field(..., description="Source (default or custom)")
+    """
+    背景音乐信息模型。
+    
+    描述了系统中可用的单个背景音乐文件。
+    """
+    name: str = Field(..., description="音频文件名称（如 'default.mp3'）")
+    path: str = Field(..., description="音频文件的服务器路径")
+    source: str = Field(..., description="音频来源（如 'default' 系统自带 或 'custom' 用户自定义）")
 
 
 class BGMListResponse(BaseModel):
-    """BGM list response"""
+    """
+    背景音乐列表响应模型。
+    """
     success: bool = True
     message: str = "Success"
-    bgm_files: List[BGMInfo] = Field(..., description="List of available BGM files")
+    bgm_files: List[BGMInfo] = Field(..., description="当前可供选择的所有背景音乐文件列表")
 

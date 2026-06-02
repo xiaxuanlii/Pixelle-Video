@@ -13,7 +13,8 @@
 """
 Content generation endpoints
 
-Endpoints for generating narrations, image prompts, and titles.
+此模块定义了与智能内容生成（大语言模型辅助创作）相关的 API 路由端点。
+包含了长文本拆分生成旁白、根据旁白生成画面提示词，以及智能提取标题的接口。
 """
 
 from fastapi import APIRouter, HTTPException
@@ -34,6 +35,7 @@ from pixelle_video.utils.content_generators import (
     generate_title,
 )
 
+# 创建带有 "/content" 前缀的 APIRouter，并在 Swagger 中归类为 "Content Generation"
 router = APIRouter(prefix="/content", tags=["Content Generation"])
 
 
@@ -43,21 +45,24 @@ async def generate_narration(
     pixelle_video: PixelleVideoDep
 ):
     """
-    Generate narrations from text
+    旁白生成端点。
     
-    Uses LLM to break down text into multiple narration segments.
+    使用大语言模型（LLM）将输入的长文本或主题拆分并改写成多个连贯的短句（旁白片段），
+    每个片段将对应视频中的一个分镜画面。
     
-    - **text**: Source text
-    - **n_scenes**: Number of narrations to generate
-    - **min_words**: Minimum words per narration
-    - **max_words**: Maximum words per narration
+    请求参数说明：
+    - **text**: 原始文本或要生成内容的主题。
+    - **n_scenes**: 期望拆分生成的分镜/旁白总数。
+    - **min_words**: 每个旁白片段的最小字数。
+    - **max_words**: 每个旁白片段的最大字数。
     
-    Returns list of narration strings.
+    返回：
+        NarrationGenerateResponse: 包含生成的旁白文本列表（字符串数组）。
     """
     try:
         logger.info(f"Generating {request.n_scenes} narrations from text")
         
-        # Call narration generator utility function
+        # Call narration generator utility function / 调用工具类执行实际的生成逻辑
         narrations = await generate_narrations_from_topic(
             llm_service=pixelle_video.llm,
             topic=request.text,
@@ -81,20 +86,23 @@ async def generate_image_prompt(
     pixelle_video: PixelleVideoDep
 ):
     """
-    Generate image prompts from narrations
+    画面提示词生成端点。
     
-    Uses LLM to create detailed image generation prompts.
+    使用大语言模型（LLM）根据已经生成的旁白列表，为每个旁白推断出最适合表现其内容的画面描述（Prompt）。
+    生成的 Prompt 将直接投喂给绘图引擎（如 Stable Diffusion / ComfyUI）生成对应的视频帧。
     
-    - **narrations**: List of narration texts
-    - **min_words**: Minimum words per prompt
-    - **max_words**: Maximum words per prompt
+    请求参数说明：
+    - **narrations**: 已生成的旁白列表。
+    - **min_words**: 每个画面提示词的最小长度。
+    - **max_words**: 每个画面提示词的最大长度。
     
-    Returns list of image prompts.
+    返回：
+        ImagePromptGenerateResponse: 包含生成的画面提示词列表（与旁白一一对应）。
     """
     try:
         logger.info(f"Generating image prompts for {len(request.narrations)} narrations")
         
-        # Call image prompt generator utility function
+        # Call image prompt generator utility function / 调用工具类执行提示词推断逻辑
         image_prompts = await generate_image_prompts(
             llm_service=pixelle_video.llm,
             narrations=request.narrations,
@@ -117,19 +125,22 @@ async def generate_title_endpoint(
     pixelle_video: PixelleVideoDep
 ):
     """
-    Generate video title from text
+    标题生成端点。
     
-    Uses LLM to create an engaging title.
+    使用大语言模型（LLM）对输入的原始文本进行总结和提炼，生成一个吸引人的短标题。
     
-    - **text**: Source text
-    - **style**: Optional title style hint
+    请求参数说明：
+    - **text**: 原始长文本。
+    - **style**: (可选) 期望的标题风格，如“引人入胜”、“学术”、“悬疑”等。
     
-    Returns generated title.
+    返回：
+        TitleGenerateResponse: 包含生成的单个标题字符串。
     """
     try:
         logger.info("Generating title from text")
         
-        # Call title generator utility function
+        # Call title generator utility function / 调用工具类执行标题提炼逻辑
+        # 这里指定了 strategy="llm" 来强制使用 AI 模型生成，而不是简单的截取
         title = await generate_title(
             llm_service=pixelle_video.llm,
             content=request.text,

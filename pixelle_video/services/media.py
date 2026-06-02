@@ -13,8 +13,9 @@
 """
 Media Generation Service - ComfyUI Workflow-based implementation
 
-Supports both image and video generation workflows.
-Automatically detects output type based on ExecuteResult.
+媒体（图像/视频）生成服务模块 - 基于 ComfyUI 工作流的实现。
+支持自动扫描并解析生成图像（image_*.json）和生成视频（video_*.json）的工作流配置文件，
+并根据 ExecuteResult 自动探测返回的数据类型。
 """
 
 from typing import Optional
@@ -28,67 +29,70 @@ from pixelle_video.models.media import MediaResult
 
 class MediaService(ComfyBaseService):
     """
-    Media generation service - Workflow-based
+    核心媒体生成服务 (基于工作流)。
     
-    Uses ComfyKit to execute image/video generation workflows.
-    Supports both image_ and video_ workflow prefixes.
+    继承自 ComfyBaseService。使用底层的 ComfyKit 将提示词提交给实际的生图或生视频引擎执行。
+    该类同时支持图像与视频两种生成类型的任务路由。
     
-    Usage:
-        # Use default workflow (workflows/image_flux.json)
-        media = await pixelle_video.media(prompt="a cat")
+    使用示例:
+        # 使用默认配置生成图片
+        media = await pixelle_video.media(prompt="一只可爱的猫咪")
         if media.is_image:
-            print(f"Generated image: {media.url}")
+            print(f"生成的图片路径: {media.url}")
         elif media.is_video:
-            print(f"Generated video: {media.url} ({media.duration}s)")
+            print(f"生成的视频路径: {media.url} (时长: {media.duration}秒)")
         
-        # Use specific workflow
+        # 明确指定需要调用的自定义工作流
         media = await pixelle_video.media(
-            prompt="a cat",
+            prompt="一辆飞驰的跑车",
             workflow="image_flux.json"
         )
         
-        # List available workflows
+        # 获取所有系统加载的媒体工作流列表
         workflows = pixelle_video.media.list_workflows()
     """
     
-    WORKFLOW_PREFIX = ""  # Will be overridden by _scan_workflows
-    DEFAULT_WORKFLOW = None  # No hardcoded default, must be configured
+    WORKFLOW_PREFIX = ""  # 这里为空，因为我们重写了 _scan_workflows 支持多种前缀
+    DEFAULT_WORKFLOW = None  # 没有硬编码的默认工作流，依赖系统配置
     WORKFLOWS_DIR = "workflows"
     
     def __init__(self, config: dict, core=None):
         """
-        Initialize media service
+        初始化媒体服务。
         
         Args:
-            config: Full application config dict
-            core: PixelleVideoCore instance (for accessing shared ComfyKit)
+            config: 全局配置字典。
+            core: PixelleVideoCore 实例引用（用于获取共享的 ComfyKit 会话对象）。
         """
-        super().__init__(config, service_name="image", core=core)  # Keep "image" for config compatibility
+        # 为了配置兼容性，服务名依然映射至 "image" 节点
+        super().__init__(config, service_name="image", core=core)
     
     def _scan_workflows(self):
         """
-        Scan workflows for both image_ and video_ prefixes
+        重写父类的方法：扫描工作流配置目录。
         
-        Override parent method to support multiple prefixes
+        该服务同时需要支持生成图像（前缀 `image_`）和生成视频（前缀 `video_`）两种类型的工作流。
+        
+        Returns:
+            List[dict]: 排序后的可用工作流字典列表。
         """
         from pixelle_video.utils.os_util import list_resource_dirs, list_resource_files, get_resource_path
         from pathlib import Path
         
         workflows = []
         
-        # Get all workflow source directories
+        # 获取所有工作流来源目录 (如 'runninghub', 'selfhost' 等)
         source_dirs = list_resource_dirs("workflows")
         
         if not source_dirs:
             logger.warning("No workflow source directories found")
             return workflows
         
-        # Scan each source directory for workflow files
+        # 遍历扫描每个来源目录
         for source_name in source_dirs:
-            # Get all JSON files for this source
             workflow_files = list_resource_files("workflows", source_name)
             
-            # Filter to only files matching image_ or video_ prefix
+            # 仅保留带有 image_ 或 video_ 前缀且为 .json 格式的配置文件
             matching_files = [
                 f for f in workflow_files 
                 if (f.startswith("image_") or f.startswith("video_")) and f.endswith('.json')
@@ -96,7 +100,7 @@ class MediaService(ComfyBaseService):
             
             for filename in matching_files:
                 try:
-                    # Get actual file path
+                    # 获取该配置文件的物理绝对路径并尝试加载解析
                     file_path = Path(get_resource_path("workflows", source_name, filename))
                     workflow_info = self._parse_workflow_file(file_path, source_name)
                     workflows.append(workflow_info)
@@ -104,7 +108,7 @@ class MediaService(ComfyBaseService):
                 except Exception as e:
                     logger.error(f"Failed to parse workflow {source_name}/{filename}: {e}")
         
-        # Sort by key (source/name)
+        # 按照唯一标识键名 (key) 进行稳定排序返回
         return sorted(workflows, key=lambda w: w["key"])
 
     def list_workflows(self) -> list[dict]:
@@ -118,15 +122,15 @@ class MediaService(ComfyBaseService):
         self,
         prompt: str,
         workflow: Optional[str] = None,
-        # Media type specification (required for proper handling)
-        media_type: str = "image",  # "image" or "video"
-        # ComfyUI connection (optional overrides)
+        # 指定实际生成的媒体类型（必须明确声明，以引导底层如何处理结果）
+        media_type: str = "image",  # 接受 "image" 或 "video"
+        # 覆盖级的 ComfyUI 连接凭据
         comfyui_url: Optional[str] = None,
         runninghub_api_key: Optional[str] = None,
-        # Common workflow parameters
+        # 常用的生图/视频节点参数提取暴露
         width: Optional[int] = None,
         height: Optional[int] = None,
-        duration: Optional[float] = None,  # Video duration in seconds (for video workflows)
+        duration: Optional[float] = None,  # Video duration in seconds (for video workflows) / 视频流专属参数（期望生成的视频时长/秒，通常由前置 TTS 的音频时长决定）
         output_path: Optional[str] = None,
         image_path: Optional[str] = None,
         negative_prompt: Optional[str] = None,
@@ -137,71 +141,31 @@ class MediaService(ComfyBaseService):
         **params
     ) -> MediaResult:
         """
-        Generate media (image or video) using workflow
+        触发工作流生成多媒体文件主入口。
         
-        Media type must be specified explicitly via media_type parameter.
-        Returns a MediaResult object containing media type and URL.
+        请求底层的 ComfyKit 将提示词和一系列超参数推送给引擎执行生图或生视频任务，并等待结果返回。
         
         Args:
-            prompt: Media generation prompt
-            workflow: Workflow filename (default: from config or "image_flux.json")
-            media_type: Type of media to generate - "image" or "video" (default: "image")
-            comfyui_url: ComfyUI URL (optional, overrides config)
-            runninghub_api_key: RunningHub API key (optional, overrides config)
-            width: Media width
-            height: Media height
-            duration: Target video duration in seconds (only for video workflows, typically from TTS audio duration)
-            negative_prompt: Negative prompt
-            steps: Sampling steps
-            seed: Random seed
-            cfg: CFG scale
-            sampler: Sampler name
-            **params: Additional workflow parameters
+            prompt: 正向画面提示词。
+            workflow: 指定的工作流名称或路径（未指定则读取系统默认配置，例如 "image_flux.json"）。
+            media_type: 生成的媒体类型 "image" 还是 "video"（默认为 "image"）。
+            comfyui_url: 自定义的 ComfyUI 服务器地址（覆盖全局配置）。
+            runninghub_api_key: 自定义的云端 API 凭据。
+            width: 输出画面的宽度（像素）。
+            height: 输出画面的高度（像素）。
+            duration: 预期视频生成时长（秒）。**针对视频生成这是个非常核心的参数**，用于严格保证声画同步。
+            negative_prompt: 反向提示词（告诉 AI 不应该包含哪些内容）。
+            steps: 降噪采样步数。
+            seed: 随机种子（固定种子可以生成大致相同的图片）。
+            cfg: 提示词相关性权重（数值越大越遵循提示词，但画面可能变形）。
+            sampler: 采样器名称。
+            **params: 透传给工作流内部节点的其他任何定制参数。
         
         Returns:
-            MediaResult object with media_type ("image" or "video") and url
-        
-        Examples:
-            # Simplest: use default workflow (workflows/image_flux.json)
-            media = await pixelle_video.media(prompt="a beautiful cat")
-            if media.is_image:
-                print(f"Image: {media.url}")
+            MediaResult: 包含最终 URL、判定出的实际类型以及可能附带的视频时长的结果对象。
             
-            # Use specific workflow
-            media = await pixelle_video.media(
-                prompt="a cat",
-                workflow="image_flux.json"
-            )
-            
-            # Video workflow
-            media = await pixelle_video.media(
-                prompt="a cat running",
-                workflow="image_video.json"
-            )
-            if media.is_video:
-                print(f"Video: {media.url}, duration: {media.duration}s")
-            
-            # With additional parameters
-            media = await pixelle_video.media(
-                prompt="a cat",
-                workflow="image_flux.json",
-                width=1024,
-                height=1024,
-                steps=20,
-                seed=42
-            )
-            
-            # With absolute path
-            media = await pixelle_video.media(
-                prompt="a cat",
-                workflow="/path/to/custom.json"
-            )
-            
-            # With custom ComfyUI server
-            media = await pixelle_video.media(
-                prompt="a cat",
-                comfyui_url="http://192.168.1.100:8188"
-            )
+        Raises:
+            Exception: 底层执行失败、没有获取到有效媒体文件等。
         """
         selected_workflow = workflow or self.config.get("default_workflow")
         if selected_workflow and selected_workflow.startswith("api/"):
@@ -224,13 +188,13 @@ class MediaService(ComfyBaseService):
                 **params
             )
 
-        # 1. Resolve workflow (returns structured info)
+        # 1. Resolve workflow (returns structured info) / 解析请求的工作流，获取准确的配置和内部参数映射字典
         workflow_info = self._resolve_workflow(workflow=workflow)
         
-        # 2. Build workflow parameters (ComfyKit config is now managed by core)
+        # 2. 构建传递给工作流中节点的输入变量字典
         workflow_params = {"prompt": prompt}
         
-        # Add optional parameters
+        # 填充所有额外指定的超参
         if width is not None:
             workflow_params["width"] = width
         if height is not None:
@@ -250,37 +214,33 @@ class MediaService(ComfyBaseService):
         if sampler is not None:
             workflow_params["sampler"] = sampler
         
-        # Add any additional parameters
         workflow_params.update(params)
         
         logger.debug(f"Workflow parameters: {workflow_params}")
         
-        # 4. Execute workflow using shared ComfyKit instance from core
+        # 4. 从核心服务层获取 ComfyKit 共享连接并调度任务
         try:
-            # Get shared ComfyKit instance (lazy initialization + config hot-reload)
             kit = await self.core._get_or_create_comfykit()
             
-            # Determine what to pass to ComfyKit based on source
+            # 判断并分发给云端或本地环境执行
             if workflow_info["source"] == "runninghub" and "workflow_id" in workflow_info:
-                # RunningHub: pass workflow_id (ComfyKit will use runninghub backend)
                 workflow_input = workflow_info["workflow_id"]
                 logger.info(f"Executing RunningHub workflow: {workflow_input}")
             else:
-                # Selfhost: pass file path (ComfyKit will use local ComfyUI)
                 workflow_input = workflow_info["path"]
                 logger.info(f"Executing selfhost workflow: {workflow_input}")
             
             result = await kit.execute(workflow_input, workflow_params)
             
-            # 5. Handle result based on specified media_type
+            # 5. 分析执行结果
             if result.status != "completed":
                 error_msg = result.msg or "Unknown error"
                 logger.error(f"Media generation failed: {error_msg}")
                 raise Exception(f"Media generation failed: {error_msg}")
             
-            # Extract media based on specified type
+            # 根据调用方期望的 media_type 去对应的结果池中拉取文件路径
             if media_type == "video":
-                # Video workflow - get video from result
+                # 视频工作流 - 尝试从 videos 列表中提取结果
                 if not result.videos:
                     logger.error("No video generated (workflow returned no videos)")
                     raise Exception("No video generated")
@@ -288,7 +248,7 @@ class MediaService(ComfyBaseService):
                 video_url = result.videos[0]
                 logger.info(f"✅ Generated video: {video_url}")
                 
-                # Try to extract duration from result (if available)
+                # 如果引擎成功返回了实际计算出的时长，则带上
                 duration = None
                 if hasattr(result, 'duration') and result.duration:
                     duration = result.duration
@@ -299,7 +259,7 @@ class MediaService(ComfyBaseService):
                     duration=duration
                 )
             else:  # image
-                # Image workflow - get image from result
+                # 图像工作流 - 尝试从 images 列表中提取结果
                 if not result.images:
                     logger.error("No image generated (workflow returned no images)")
                     raise Exception("No image generated")

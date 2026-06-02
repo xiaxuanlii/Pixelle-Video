@@ -13,14 +13,14 @@
 """
 Workflow Path Resolver
 
-Standardized workflow path resolution for all ComfyUI services.
-Convention: {source}/{service}.json
+工作流解析与定位辅助模块。
+为各种需要调用底层的系统工作流（例如图像分析、视频生成、TTS 转换等）
+制定标准化的文件查找命名规约和后备机制。
 
-Examples:
-    - Image analysis: selfhost/analyse_image.json, runninghub/analyse_image.json
-    - Image generation: selfhost/image.json, runninghub/image.json
-    - Video generation: selfhost/video.json, runninghub/video.json
-    - TTS: selfhost/tts.json, runninghub/tts.json
+规约格式为: {source}/{service}.json
+例如:
+    - 图像反推提示词: selfhost/analyse_image.json 或 runninghub/analyse_image.json
+    - AI 生图: runninghub/image.json
 """
 
 from typing import Literal
@@ -33,35 +33,23 @@ def resolve_workflow_path(
     source: WorkflowSource = 'runninghub'
 ) -> str:
     """
-    Resolve workflow path using standardized naming convention
-    
-    Convention: workflows/{source}/{service_name}.json
+    根据服务名和来源动态组装出工作流文件的相对路径。
     
     Args:
-        service_name: Service identifier (e.g., "analyse_image", "image", "video", "tts")
-        source: Workflow source - 'runninghub' (default) or 'selfhost'
+        service_name: 底层服务名称关键字 (如 "analyse_image", "video")。
+        source: 工作流托管模式：'runninghub'（云端）或 'selfhost'（私有化本地部署）。
     
     Returns:
-        Workflow path in format: "{source}/{service_name}.json"
-        
-    Examples:
-        >>> resolve_workflow_path("analyse_image", "runninghub")
-        'runninghub/analyse_image.json'
-        
-        >>> resolve_workflow_path("analyse_image", "selfhost")
-        'selfhost/analyse_image.json'
-        
-        >>> resolve_workflow_path("image")  # defaults to runninghub
-        'runninghub/image.json'
+        str: 拼接好的路径标识字符串 "{source}/{service_name}.json"
     """
     return f"{source}/{service_name}.json"
 
 
 def get_default_source() -> WorkflowSource:
     """
-    Get default workflow source
+    获取全局默认的工作流服务提供商策略。
     
     Returns:
-        'runninghub' - Cloud-first approach, better for beginners
+        Literal: 当前框架倾向于使用 'runninghub' 作为默认值以降低初学者的部署门槛。
     """
     return 'runninghub'

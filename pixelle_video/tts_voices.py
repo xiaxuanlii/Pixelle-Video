@@ -13,13 +13,13 @@
 """
 TTS Voice Configuration
 
-Defines available voices for local Edge TTS inference.
+定义了本地免费的 Edge TTS 推理可用的音色集合及枚举标识。
 """
 
 from typing import List, Dict, Any
 
 
-# Edge TTS voice presets for local inference
+# 微软 Edge TTS 官方提供的高质量免费配音员标识符
 EDGE_TTS_VOICES: List[Dict[str, Any]] = [
     # Chinese voices
     {
@@ -197,47 +197,42 @@ EDGE_TTS_VOICES: List[Dict[str, Any]] = [
 
 def get_voice_display_name(voice_id: str, tr_func=None, locale: str = "zh_CN") -> str:
     """
-    Get display name for voice
+    获取音色的前端显示名称。
+    
+    如果提供了前端页面的国际化翻译函数则调用之，否则返回原始的英语 ID 标识。
     
     Args:
-        voice_id: Voice ID (e.g., "zh-CN-YunjianNeural")
-        tr_func: Translation function (optional)
-        locale: Current locale (default: "zh_CN")
+        voice_id: 音色 ID (如: "zh-CN-YunjianNeural")
+        tr_func: 外部注入的多语言翻译器钩子
+        locale: 当前用户语言
     
     Returns:
-        Display name (translated label if in Chinese, otherwise voice ID)
+        适合页面渲染展示的美化名称。
     """
-    # Find voice config
+    # 匹配查找对应的字典结构
     voice_config = next((v for v in EDGE_TTS_VOICES if v["id"] == voice_id), None)
     
     if not voice_config:
         return voice_id
     
-    # If Chinese locale and translation function available, use translated label
+    # 中文环境下如果有提供翻译函数器则尝试获取中文可读别名
     if locale == "zh_CN" and tr_func:
         label_key = voice_config["label_key"]
         return tr_func(label_key)
     
-    # For other locales, return voice ID
     return voice_id
 
 
 def speed_to_rate(speed: float) -> str:
     """
-    Convert speed multiplier to Edge TTS rate parameter
+    将用户界面的浮点数倍数语速转换为底层库要求的百分比差值标识。
     
     Args:
-        speed: Speed multiplier (1.0 = normal, 1.2 = 120%)
+        speed: 播放速度乘数倍率 (1.0 = 原速，1.2 = 快 20%)
     
     Returns:
-        Rate string (e.g., "+20%", "-10%")
-    
-    Examples:
-        1.0 → "+0%"
-        1.2 → "+20%"
-        0.8 → "-20%"
+        类似 "+20%", "-10%" 等字符串格式要求。
     """
     percentage = int((speed - 1.0) * 100)
     sign = "+" if percentage >= 0 else ""
     return f"{sign}{percentage}%"
-

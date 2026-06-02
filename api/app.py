@@ -60,9 +60,18 @@ from api.routers import (
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """
-    Application lifespan manager
+    FastAPI 生命周期上下文管理器。
     
-    Handles startup and shutdown events.
+    此函数在应用程序的整个生命周期中管理全局状态和后台任务。
+    - 在启动期间（`yield` 之前）：它初始化任务管理器，该管理器负责处理异步后台任务。
+    - 在关闭期间（`yield` 之后）：它优雅地停止任务管理器，并确保在 pixelle_video 后端中
+      所有资源（如加载的模型或活动连接）都被正确释放。
+      
+    Args:
+        app (FastAPI): FastAPI 应用程序实例。
+        
+    Yields:
+        None
     """
     # Startup
     logger.info("🚀 Starting Pixelle-Video API...")
@@ -136,8 +145,17 @@ app.include_router(frame_router, prefix=api_config.api_prefix)
 
 
 @app.get("/")
-async def root():
-    """Root endpoint with API information"""
+async def root() -> dict:
+    """
+    根 API 端点。
+    
+    返回有关 API 服务的核心信息，包括其版本、文档链接、健康检查端点，
+    以及所有可用 API 资源前缀的映射字典。这充当一个发现端点，
+    供客户端了解 API 的整体结构。
+    
+    Returns:
+        dict: 包含服务元数据和 API 路由映射的字典。
+    """
     return {
         "service": "Pixelle-Video API",
         "version": "0.1.0",

@@ -12,6 +12,9 @@
 
 """
 System settings component for web UI
+
+Web UI 高级系统底层设置交互面板（抽屉组件）。
+封装了连接大厂 API 和本地 ComfyUI 配置的编辑、测试连接和全局生效功能。
 """
 
 import streamlit as st
@@ -22,43 +25,38 @@ from pixelle_video.config import config_manager
 
 
 def render_advanced_settings():
-    """Render system configuration (required) with 2-column layout"""
-    # Check if system is configured
+    """
+    负责在顶部展示包含两栏（左侧 LLM，右侧画图生音大模型引擎）的设置折叠区。
+    系统会嗅探全局配置的合法性：如果检测出必填的配置（如 LLM api_key）处于残缺或空白态，则会强制默认向用户展开面板。
+    """
     is_configured = config_manager.validate()
     
-    # Expand if not configured, collapse if configured
     with st.expander(tr("settings.title"), expanded=not is_configured):
         # 2-column layout: LLM | ComfyUI, followed by direct media API providers.
         llm_col, comfyui_col = st.columns(2)
         
         # ====================================================================
-        # Column 1: LLM Settings
+        # Column 1: LLM Settings / 左列：大语言模型鉴权通道
         # ====================================================================
         with llm_col:
             with st.container(border=True):
                 st.markdown(f"**{tr('settings.llm.title')}**")
                 
-                # Quick preset selection
+                # 集成从系统中提取到的大模型接入预设 (Presets) 自动补全逻辑
                 from pixelle_video.llm_presets import get_preset_names, get_preset, find_preset_by_base_url_and_model
                 
-                # Custom at the end
                 preset_names = get_preset_names() + ["Custom"]
-                
-                # Get current config
                 current_llm = config_manager.get_llm_config()
                 
-                # Auto-detect which preset matches current config
+                # 回推目前用户的 Base URL 指向的厂商作为默认选择项目
                 current_preset = find_preset_by_base_url_and_model(
                     current_llm["base_url"], 
                     current_llm["model"]
                 )
                 
-                # Determine default index based on current config
                 if current_preset:
-                    # Current config matches a preset
                     default_index = preset_names.index(current_preset)
                 else:
-                    # Current config doesn't match any preset -> Custom
                     default_index = len(preset_names) - 1
                 
                 selected_preset = st.selectbox(
@@ -69,35 +67,26 @@ def render_advanced_settings():
                     key="llm_preset_select"
                 )
                 
-                # Auto-fill based on selected preset
                 if selected_preset != "Custom":
-                    # Preset selected
                     preset_config = get_preset(selected_preset)
                     
-                    # If user switched to a different preset (not current one), clear API key
-                    # If it's the same as current config, keep API key
                     if selected_preset == current_preset:
-                        # Same preset as saved config: keep API key
                         default_api_key = current_llm["api_key"]
                     else:
-                        # Different preset: use default_api_key if provided (e.g., Ollama), otherwise clear
                         default_api_key = preset_config.get("default_api_key", "")
                     
                     default_base_url = preset_config.get("base_url", "")
                     default_model = preset_config.get("model", "")
                     
-                    # Show API key URL if available
                     if preset_config.get("api_key_url"):
                         st.markdown(f"🔑 [{tr('settings.llm.get_api_key')}]({preset_config['api_key_url']})")
                 else:
-                    # Custom: show current saved config (if any)
                     default_api_key = current_llm["api_key"]
                     default_base_url = current_llm["base_url"]
                     default_model = current_llm["model"]
                 
                 st.markdown("---")
                 
-                # API Key (use unique key to force refresh when switching preset)
                 llm_api_key = st.text_input(
                     f"{tr('settings.llm.api_key')} *",
                     value=default_api_key,
@@ -106,7 +95,6 @@ def render_advanced_settings():
                     key=f"llm_api_key_input_{selected_preset}"
                 )
                 
-                # Base URL (use unique key based on preset to force refresh)
                 llm_base_url = st.text_input(
                     f"{tr('settings.llm.base_url')} *",
                     value=default_base_url,
@@ -114,23 +102,19 @@ def render_advanced_settings():
                     key=f"llm_base_url_input_{selected_preset}"
                 )
                 
-                # Model selection with dropdown and load button
-                # Initialize session state for loaded models
+                # =============================== 模型探针探测与拉取 ===============================
+                
                 if "llm_loaded_models" not in st.session_state:
                     st.session_state.llm_loaded_models = []
                 
-                # Build model options: Custom option + loaded models
                 CUSTOM_MODEL_OPTION = f"✏️ {tr('settings.llm.custom_model')}"
                 model_options = [CUSTOM_MODEL_OPTION] + st.session_state.llm_loaded_models
                 
-                # Determine default selection
                 if default_model in st.session_state.llm_loaded_models:
                     default_model_index = model_options.index(default_model)
                 else:
-                    # Default model not in loaded list, use custom
                     default_model_index = 0
                 
-                # Model dropdown with load button on the right
                 model_col, load_col, test_col = st.columns([3, 1, 1])
                 
                 with model_col:
@@ -148,7 +132,7 @@ def render_advanced_settings():
                         f"🔄 {tr('settings.llm.load_models')}",
                         help=tr("settings.llm.load_models_help"),
                         key="load_models_btn",
-                        use_container_width=True
+                        width="stretch"
                     )
                 
                 with test_col:
@@ -157,10 +141,9 @@ def render_advanced_settings():
                         f"🔌 {tr('settings.llm.test_connection')}",
                         help=tr("settings.llm.test_connection_help"),
                         key="test_llm_connection_btn",
-                        use_container_width=True
+                        width="stretch"
                     )
                 
-                # Handle load models button click
                 if load_clicked:
                     if llm_api_key and llm_base_url:
                         try:
@@ -175,7 +158,6 @@ def render_advanced_settings():
                     else:
                         st.warning(tr("status.llm_config_incomplete"))
                 
-                # Handle test connection button click
                 if test_clicked:
                     if llm_api_key and llm_base_url:
                         try:
@@ -191,7 +173,6 @@ def render_advanced_settings():
                     else:
                         st.warning(tr("status.llm_config_incomplete"))
                 
-                # If custom option selected, show text input for custom model name
                 if selected_model_option == CUSTOM_MODEL_OPTION:
                     llm_model = st.text_input(
                         tr("settings.llm.custom_model_input"),
@@ -203,16 +184,15 @@ def render_advanced_settings():
                     llm_model = selected_model_option
         
         # ====================================================================
-        # Column 2: ComfyUI Settings
+        # Column 2: ComfyUI Settings / 右列：并发引擎参数控制与配置
         # ====================================================================
         with comfyui_col:
             with st.container(border=True):
                 st.markdown(f"**{tr('settings.comfyui.title')}**")
                 
-                # Get current configuration
                 comfyui_config = config_manager.get_comfyui_config()
                 
-                # Local/Self-hosted ComfyUI configuration
+                # 支持自备显卡及开源社群使用本地局域网内起的节点控制板
                 st.markdown(f"**{tr('settings.comfyui.local_title')}**")
                 url_col, key_col = st.columns(2)
                 with url_col:
@@ -231,8 +211,7 @@ def render_advanced_settings():
                         key="comfyui_api_key_input"
                     )
                 
-                # Test connection button
-                if st.button(tr("btn.test_connection"), key="test_comfyui", use_container_width=True):
+                if st.button(tr("btn.test_connection"), key="test_comfyui", width="stretch"):
                     try:
                         import requests
                         response = requests.get(f"{comfyui_url}/system_stats", timeout=5)
@@ -245,7 +224,7 @@ def render_advanced_settings():
                 
                 st.markdown("---")
                 
-                # RunningHub cloud configuration
+                # 云算力使用策略与平台令牌配置
                 st.markdown(f"**{tr('settings.comfyui.cloud_title')}**")
                 runninghub_api_key = st.text_input(
                     tr("settings.comfyui.runninghub_api_key"),
@@ -260,7 +239,6 @@ def render_advanced_settings():
                     f"(https://www.runninghub{'.cn' if get_language() == 'zh_CN' else '.ai'}/?inviteCode=bozpdlbj)"
                 )
                 
-                # RunningHub concurrent limit and instance type (in one row)
                 limit_col, instance_col = st.columns(2)
                 with limit_col:
                     runninghub_concurrent_limit = st.number_input(
@@ -272,10 +250,9 @@ def render_advanced_settings():
                         key="runninghub_concurrent_limit_input"
                     )
                 with instance_col:
-                    # Check if instance type is "plus" (48G VRAM enabled)
+                    # 设定请求云端高级服务器运算型号的标记开关逻辑
                     current_instance_type = comfyui_config.get("runninghub_instance_type") or ""
                     is_plus_enabled = current_instance_type == "plus"
-                    # Instance type options with i18n
                     instance_options = [
                         tr("settings.comfyui.runninghub_instance_24g"),
                         tr("settings.comfyui.runninghub_instance_48g"),
@@ -287,7 +264,6 @@ def render_advanced_settings():
                         help=tr("settings.comfyui.runninghub_instance_type_help"),
                         key="runninghub_instance_type_input"
                     )
-                    # Convert display value back to actual value
                     runninghub_48g_enabled = runninghub_instance_type_display == tr("settings.comfyui.runninghub_instance_48g")
 
         # ====================================================================
@@ -428,22 +404,19 @@ def render_advanced_settings():
                 )
         
         # ====================================================================
-        # Action Buttons (full width at bottom)
+        # Action Buttons / 全局确认保存并落地重置区域
         # ====================================================================
         st.markdown("---")
         
         col1, col2 = st.columns(2)
         with col1:
-            if st.button(tr("btn.save_config"), use_container_width=True, key="save_config_btn"):
+            if st.button(tr("btn.save_config"), width="stretch", key="save_config_btn"):
                 try:
-                    # Validate and save LLM configuration
                     if not (llm_api_key and llm_base_url and llm_model):
                         st.error(tr("status.llm_config_incomplete"))
                     else:
                         config_manager.set_llm_config(llm_api_key, llm_base_url, llm_model)
                     
-                    # Save ComfyUI configuration (optional fields, always save what's provided)
-                    # Convert checkbox to instance type: True -> "plus", False -> ""
                     instance_type = "plus" if runninghub_48g_enabled else ""
                     config_manager.set_comfyui_config(
                         comfyui_url=comfyui_url if comfyui_url else None,
@@ -480,8 +453,8 @@ def render_advanced_settings():
                         "use_proxy": bool(api_kling_use_proxy),
                     })
                     
-                    # Only save to file if LLM config is valid
                     if llm_api_key and llm_base_url and llm_model:
+                        # 只有在主心骨未破损时真正覆写 JSON YAML 等结构落盘文件
                         config_manager.save()
                         st.success(tr("status.config_saved"))
                         safe_rerun()
@@ -489,8 +462,7 @@ def render_advanced_settings():
                     st.error(f"{tr('status.save_failed')}: {str(e)}")
         
         with col2:
-            if st.button(tr("btn.reset_config"), use_container_width=True, key="reset_config_btn"):
-                # Reset to default
+            if st.button(tr("btn.reset_config"), width="stretch", key="reset_config_btn"):
                 from pixelle_video.config.schema import PixelleVideoConfig
                 config_manager.config = PixelleVideoConfig()
                 config_manager.save()

@@ -12,6 +12,9 @@
 
 """
 Header components for web UI
+
+Web UI 页面通用顶部导航头。
+负责展示系统 Logo，并集成一个允许热切换多语言配置 (i18n) 的下拉选择器。
 """
 
 import streamlit as st
@@ -21,7 +24,7 @@ from web.utils.streamlit_helpers import safe_rerun
 
 
 def render_header():
-    """Render page header with title and language selector"""
+    """利用两列比例布局呈现顶导大字目标题与语言框"""
     col1, col2 = st.columns([4, 1])
     with col1:
         st.markdown(f"<h3>{tr('app.title')}</h3>", unsafe_allow_html=True)
@@ -30,7 +33,7 @@ def render_header():
 
 
 def render_language_selector():
-    """Render language selector at the top"""
+    """获取并在右上角动态渲染语言列表清单与选择响应逻辑"""
     languages = get_available_languages()
     lang_options = [f"{code} - {name}" for code, name in languages.items()]
     
@@ -48,5 +51,4 @@ def render_language_selector():
     if selected_code != current_lang:
         st.session_state.language = selected_code
         set_language(selected_code)
-        safe_rerun()
-
+        safe_rerun()  # 触发重新渲染使新的多语言包立地生效应用

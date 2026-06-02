@@ -13,16 +13,18 @@
 """
 HTML-based Frame Generator Service
 
-Renders HTML templates to frame images using Playwright for headless browser rendering.
+基于 HTML 模板的单帧画面渲染服务。
+利用 Playwright（无头浏览器技术）将 HTML/CSS 排版渲染为静态的 PNG 帧图像。
+这种方案使得视频的排版和字幕样式极其灵活，完全兼容 Web 前端的 CSS 动效和布局能力。
 
-Linux Environment Requirements:
-    - fontconfig package must be installed
-    - Basic fonts (e.g., fonts-liberation, fonts-noto) recommended
+Linux 环境运行要求:
+    - 必须安装 fontconfig 字体配置包。
+    - 建议安装基本的中英文字体（如 fonts-liberation, fonts-noto-cjk 等），否则渲染出的文字可能是豆腐块。
     
-    Ubuntu/Debian: sudo apt-get install -y fontconfig fonts-liberation fonts-noto-cjk
-    CentOS/RHEL: sudo yum install -y fontconfig liberation-fonts google-noto-cjk-fonts
+    Ubuntu/Debian 依赖安装指令: sudo apt-get install -y fontconfig fonts-liberation fonts-noto-cjk
+    CentOS/RHEL 依赖安装指令: sudo yum install -y fontconfig liberation-fonts google-noto-cjk-fonts
     
-    Playwright browser install: playwright install --with-deps chromium
+    Playwright 浏览器环境安装指令: playwright install --with-deps chromium
 """
 
 import asyncio
@@ -40,18 +42,18 @@ from pixelle_video.utils.template_util import parse_template_size
 
 class HTMLFrameGenerator:
     """
-    HTML-based frame generator
+    基于 HTML 技术的帧画面渲染器。
     
-    Renders HTML templates to frame images with variable substitution.
-    Uses Playwright for reliable headless browser rendering.
+    负责加载 HTML 模板，进行变量和参数的替换注入，最终调用 Playwright 
+    启动无头 Chromium 浏览器，将整个网页截图保存下来，形成带有透明通道或底图的完美排版帧。
     
-    Usage:
+    使用示例:
         >>> generator = HTMLFrameGenerator("templates/modern.html")
         >>> frame_path = await generator.generate_frame(
-        ...     topic="Why reading matters",
-        ...     text="Reading builds new neural pathways...",
-        ...     image="/path/to/image.png",
-        ...     ext={"content_title": "Sample Title", "content_author": "Author Name"}
+        ...     title="为什么阅读如此重要",
+        ...     text="阅读能在你的大脑中建立新的神经通路...",
+        ...     image="/path/to/generated_background.png",
+        ...     ext={"accent_color": "#ff0000", "show_logo": True}
         ... )
     """
     
@@ -61,10 +63,10 @@ class HTMLFrameGenerator:
 
     def __init__(self, template_path: str):
         """
-        Initialize HTML frame generator
+        初始化帧画面生成器。
         
         Args:
-            template_path: Path to HTML template file (e.g., "templates/1080x1920/default.html")
+            template_path: HTML 模板文件所在路径 (例如: "templates/1080x1920/default.html")。
         """
         self.template_path = template_path
         self.template = self._load_template(template_path)
@@ -77,7 +79,7 @@ class HTMLFrameGenerator:
     
     
     def _check_linux_dependencies(self):
-        """Check Linux system dependencies and warn if missing"""
+        """自动检查当前 Linux 宿主系统中关于字体的依赖项（防止中文字符乱码）"""
         if os.name != 'posix':
             return
         
@@ -112,7 +114,7 @@ class HTMLFrameGenerator:
             logger.debug(f"Could not check fontconfig status: {e}")
     
     def _load_template(self, template_path: str) -> str:
-        """Load HTML template from file"""
+        """从磁盘加载 HTML 文件为内存字符串"""
         path = Path(template_path)
         if not path.exists():
             raise FileNotFoundError(f"Template not found: {template_path}")
@@ -125,14 +127,13 @@ class HTMLFrameGenerator:
     
     def _parse_media_size_from_meta(self) -> tuple[Optional[int], Optional[int]]:
         """
-        Parse media size from meta tags in template
+        通过 BeautifulSoup 提取模板内部对预期嵌套媒体尺寸的约束要求（meta 标签声明）。
         
-        Looks for meta tags:
-        - <meta name="template:media-width" content="1024">
-        - <meta name="template:media-height" content="1024">
+        例如:
+        <meta name="template:media-width" content="1024">
         
         Returns:
-            Tuple of (width, height) or (None, None) if not found
+            Tuple[Optional[int], Optional[int]]: 解析出的宽度和高度。
         """
         from bs4 import BeautifulSoup
         
@@ -158,12 +159,10 @@ class HTMLFrameGenerator:
     
     def get_media_size(self) -> tuple[int, int]:
         """
-        Get media size for image/video generation
-        
-        Returns media size specified in template meta tags.
+        获取为了适配该 HTML 模板排版所必须生成的图像/视频底层素材尺寸。
         
         Returns:
-            Tuple of (width, height)
+            Tuple[int, int]: 宽度和高度（像素），如果未标记则使用兜底值 1024x1024。
         """
         media_width, media_height = self._parse_media_size_from_meta()
         
@@ -175,25 +174,16 @@ class HTMLFrameGenerator:
     
     def parse_template_parameters(self) -> Dict[str, Dict[str, Any]]:
         """
-        Parse custom parameters from HTML template
+        解析模板源代码中内嵌的自定义占位符（可供用户修改的高级排版配置）。
         
-        Supports syntax: {{param:type=default}}
-        - {{param}} -> text type, no default
-        - {{param=value}} -> text type, with default
-        - {{param:type}} -> specified type, no default
-        - {{param:type=value}} -> specified type, with default
-        
-        Supported types: text, number, color, bool
+        支持的自定义 DSL 语法: {{param:type=default}}
+        - {{param}} -> string text 类型，无默认值。
+        - {{param=value}} -> text 类型，有默认值。
+        - {{param:type}} -> 强制声明类型。
+        - {{param:type=value}} -> 同时声明类型和初始默认值。
         
         Returns:
-            Dictionary of custom parameters with their configurations:
-            {
-                'param_name': {
-                    'type': 'text' | 'number' | 'color' | 'bool',
-                    'default': Any,
-                    'label': str  # same as param_name
-                }
-            }
+            Dict: 用于给前端构建动态控制表单的字典描述。
         """
         PRESET_PARAMS = {'title', 'text', 'image', 'index'}
         
@@ -206,6 +196,7 @@ class HTMLFrameGenerator:
             param_type = match.group(2) or 'text'
             default_value = match.group(3)
             
+            # 跳过系统的内置必填保留字
             if param_name in PRESET_PARAMS:
                 continue
             
@@ -230,16 +221,7 @@ class HTMLFrameGenerator:
         return params
     
     def _parse_default_value(self, param_type: str, value_str: Optional[str]) -> Any:
-        """
-        Parse default value based on parameter type
-        
-        Args:
-            param_type: Type of parameter (text, number, color, bool)
-            value_str: String value to parse (can be None)
-        
-        Returns:
-            Parsed value with appropriate type
-        """
+        """根据探测出的声明类型转换默认值字符串为 Python 数据类型"""
         if value_str is None:
             return {
                 'text': '',
@@ -272,19 +254,14 @@ class HTMLFrameGenerator:
     
     def _replace_parameters(self, html: str, values: Dict[str, Any]) -> str:
         """
-        Replace parameter placeholders with actual values
-        
-        Supports DSL syntax: {{param:type=default}}
-        - If value provided in values dict, use it
-        - Otherwise, use default value from placeholder
-        - If no default, use empty string
+        使用实际的参数值来正式替换 HTML 字符串内的所有 DSL 占位符变量。
         
         Args:
-            html: HTML template content
-            values: Dictionary of parameter values
+            html: HTML 模板字符串。
+            values: 上层业务传来的有效参数字典。
         
         Returns:
-            HTML with placeholders replaced
+            str: 已经注入好参数值的标准 HTML 文本。
         """
         PARAM_PATTERN = r'\{\{([a-zA-Z_][a-zA-Z0-9_]*)(?::([a-z]+))?(?:=([^}]+))?\}\}'
         
@@ -309,7 +286,7 @@ class HTMLFrameGenerator:
 
     @classmethod
     async def _ensure_browser(cls):
-        """Lazily initialize a shared Playwright browser instance"""
+        """Lazily initialize a shared Playwright browser instance / 懒加载初始化并在整个应用级别共享一个 Playwright 实例（减小开销）"""
         current_loop = asyncio.get_running_loop()
         browser_usable = (
             cls._browser is not None
@@ -370,7 +347,7 @@ class HTMLFrameGenerator:
 
     @classmethod
     async def close_browser(cls):
-        """Shutdown the shared browser instance (call on app teardown)"""
+        """关闭挂载在类属性上的无头浏览器（应用退出时调用以释放系统资源）"""
         if cls._browser:
             await cls._browser.close()
             cls._browser = None
@@ -389,20 +366,19 @@ class HTMLFrameGenerator:
         output_path: Optional[str] = None
     ) -> str:
         """
-        Generate frame from HTML template
-        
-        Video size is automatically determined from template path during initialization.
+        渲染合并，产生包含全透明通道（或者有底图）的 PNG 素材图片供视频工具流叠加。
         
         Args:
-            title: Video title
-            text: Narration text for this frame
-            image: Path to AI-generated image (supports relative path, absolute path, or HTTP URL)
-            ext: Additional data (content_title, content_author, etc.)
-            output_path: Custom output path (auto-generated if None)
+            title: 视频的总标题。
+            text: 当前分镜应当显示的文字内容（旁白/字幕）。
+            image: AI生成的原始素材图（或占位图）本地路径或 URI。
+            ext: 用户提供的附加替换字典变量集合。
+            output_path: 指定的图片输出位置（如果未指定系统会自动在 output 中随机一个）。
         
         Returns:
-            Path to generated frame image
+            str: 成功渲染产生的帧画面图片路径。
         """
+        # 将传入的系统本地相对文件路径规范转换为支持被 Chromium 处理的标准的 URI 格式
         if image and not image.startswith(('http://', 'https://', 'data:', 'file://')):
             image_path = Path(image)
             if not image_path.is_absolute():
@@ -437,6 +413,7 @@ class HTMLFrameGenerator:
         page = None
         try:
             try:
+                # 申请无头浏览器页面实例
                 browser = await self._ensure_browser()
                 page = await browser.new_page(
                     viewport={'width': self.width, 'height': self.height},
@@ -452,13 +429,16 @@ class HTMLFrameGenerator:
                 )
 
             try:
-                # Write HTML to a temp file and navigate via file:// URL so that
-                # local file:// image references are loaded under the same origin.
+                # 关键：我们必须把内存中替换好的 html 代码以物理文件的形式暂存到系统磁盘中。
+                # 并且要使用 file:// 的 URL 协议要求浏览器导航到这个文件！
+                # 这是因为浏览器具有严格的跨源隔离策略。如果单纯通过 set_content() 传递 HTML 字符串，
+                # 那么内部的资源图片（基于 file:// 协议）将全部因为 CORS 安全被阻止加载。
                 fd, tmp_html_path = tempfile.mkstemp(suffix='.html', prefix='pv_frame_')
                 with os.fdopen(fd, 'w', encoding='utf-8') as f:
                     f.write(html)
                 
                 await page.goto(Path(tmp_html_path).as_uri(), wait_until='networkidle')
+                # 执行截图并允许剥离页面的 Background，保留原生的 CSS 透明色以便能在动态视频上透出来
                 await page.screenshot(path=output_path, type='png', omit_background=True)
             finally:
                 if page:
@@ -474,3 +454,4 @@ class HTMLFrameGenerator:
             raise RuntimeError(
                 f"HTML rendering failed: {type(e).__name__}: {e}"
             ) from e
+

@@ -12,6 +12,9 @@
 
 """
 Content input components for web UI (left column)
+
+Web UI 左列组件：内容录入区模块。
+负责渲染模式选择、主题录入、BGM 选择和一些基础视频设定的表单。
 """
 
 import streamlit as st
@@ -21,7 +24,10 @@ from web.utils.async_helpers import get_project_version
 
 
 def render_content_input():
-    """Render content input section (left column) with batch support"""
+    """
+    渲染左侧内容录入表单。
+    包含单任务模式和批处理模式两种交互视图。
+    """
     with st.container(border=True):
         st.markdown(f"**{tr('section.content_input')}**")
         
@@ -37,8 +43,9 @@ def render_content_input():
         if not batch_mode:
             # ================================================================
             # Single task mode (original logic, unchanged)
+            # 单一任务生成模式
             # ================================================================
-            # Processing mode selection
+            # 处理模式选择 (AI发散模式 or 固定台词模式)
             mode = st.radio(
                 "Processing Mode",
                 ["generate", "fixed"],
@@ -47,7 +54,7 @@ def render_content_input():
                 label_visibility="collapsed"
             )
             
-            # Text input (unified for both modes)
+            # 根据模式自适应渲染提示文本和高度
             text_placeholder = tr("input.topic_placeholder") if mode == "generate" else tr("input.content_placeholder")
             text_height = 120 if mode == "generate" else 200
             text_help = tr("input.text_help_generate") if mode == "generate" else tr("input.text_help_fixed")
@@ -59,7 +66,7 @@ def render_content_input():
                 help=text_help
             )
             
-            # Split mode selector (only show in fixed mode)
+            # 分镜拆分策略选择 (仅在 fixed 固定模式下可见)
             if mode == "fixed":
                 split_mode_options = {
                     "paragraph": tr("split.mode_paragraph"),
@@ -70,20 +77,20 @@ def render_content_input():
                     tr("split.mode_label"),
                     options=list(split_mode_options.keys()),
                     format_func=lambda x: split_mode_options[x],
-                    index=0,  # Default to paragraph mode
+                    index=0,  # 默认使用段落分割
                     help=tr("split.mode_help")
                 )
             else:
-                split_mode = "paragraph"  # Default for generate mode (not used)
+                split_mode = "paragraph"  # generate 模式下用不到此参数
             
-            # Title input (optional for both modes)
+            # 视频标题 (可选)
             title = st.text_input(
                 tr("input.title"),
                 placeholder=tr("input.title_placeholder"),
                 help=tr("input.title_help")
             )
             
-            # Number of scenes (only show in generate mode)
+            # 目标分镜数量设定 (仅在 generate 发散模式下有意义)
             if mode == "generate":
                 n_scenes = st.slider(
                     tr("video.frames"),
@@ -95,7 +102,7 @@ def render_content_input():
                 )
                 st.caption(tr("video.frames_label", n=n_scenes))
             else:
-                # Fixed mode: n_scenes is ignored, set default value
+                # 固定模式下，分镜数由传入文本长度和切割策略决定
                 n_scenes = 5
                 st.info(tr("video.frames_fixed_mode_hint"))
             
@@ -111,10 +118,11 @@ def render_content_input():
         else:
             # ================================================================
             # Batch mode (simplified YAGNI version)
+            # 批量多任务矩阵生成模式
             # ================================================================
             st.markdown(f"**{tr('batch.section_title')}**")
             
-            # Batch rules info
+            # 批量任务输入规则提示
             st.info(f"""
 **{tr('batch.rules_title')}**
 - ✅ {tr('batch.rule_1')}
@@ -122,7 +130,7 @@ def render_content_input():
 - ✅ {tr('batch.rule_3')}
             """)
             
-            # Batch topics input
+            # 主题录入大文本框
             text_input = st.text_area(
                 tr("batch.topics_label"),
                 height=300,
@@ -130,9 +138,8 @@ def render_content_input():
                 help=tr("batch.topics_help")
             )
             
-            # Split topics by newline
+            # 尝试通过换行符切分各个独立任务
             if text_input:
-                # Simple split by newline, filter empty lines
                 topics = [
                     line.strip() 
                     for line in text_input.strip().split('\n') 
@@ -140,14 +147,14 @@ def render_content_input():
                 ]
                 
                 if topics:
-                    # Check count limit
+                    # 保护限制，单次最多 100 个批量任务
                     if len(topics) > 100:
                         st.error(tr("batch.count_error", count=len(topics)))
                         topics = []
                     else:
                         st.success(tr("batch.count_success", count=len(topics)))
                         
-                        # Preview topics list
+                        # 展示识别出多少个主题队列
                         with st.expander(tr("batch.preview_title"), expanded=False):
                             for i, topic in enumerate(topics, 1):
                                 st.markdown(f"`{i}.` {topic}")
@@ -158,14 +165,14 @@ def render_content_input():
             
             st.markdown("---")
             
-            # Title prefix (optional)
+            # 批量统一使用的视频标题前缀
             title_prefix = st.text_input(
                 tr("batch.title_prefix_label"),
                 placeholder=tr("batch.title_prefix_placeholder"),
                 help=tr("batch.title_prefix_help")
             )
             
-            # Number of scenes (unified for all videos)
+            # 所有批量任务共享的分镜长度参数
             n_scenes = st.slider(
                 tr("batch.n_scenes_label"),
                 min_value=3,
@@ -175,20 +182,22 @@ def render_content_input():
             )
             st.caption(tr("batch.n_scenes_caption", n=n_scenes))
             
-            # Config info
             st.info(f"📌 {tr('batch.config_info')}")
             
             return {
                 "batch_mode": True,
                 "topics": topics,
-                "mode": "generate",  # Fixed to AI generate content
+                "mode": "generate",  # 批量时强制设为发散模式
                 "title_prefix": title_prefix,
                 "n_scenes": n_scenes,
             }
 
 
 def render_bgm_section(key_prefix=""):
-    """Render BGM selection section"""
+    """
+    渲染全局 BGM (背景音乐) 选项组件。
+    自动探测系统中的 `bgm` 与挂载目录中的音频文件。
+    """
     with st.container(border=True):
         st.markdown(f"**{tr('section.bgm')}**")
         
@@ -198,22 +207,20 @@ def render_bgm_section(key_prefix=""):
             st.markdown(f"**{tr('help.how')}**")
             st.markdown(tr("bgm.how"))
         
-        # Dynamically scan bgm folder for music files (merged from bgm/ and data/bgm/)
+        # 动态扫描两个潜在路径下的音乐素材
         from pixelle_video.utils.os_util import list_resource_files
         
         try:
             all_files = list_resource_files("bgm")
-            # Filter to audio files only
             audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg')
             bgm_files = sorted([f for f in all_files if f.lower().endswith(audio_extensions)])
         except Exception as e:
             st.warning(f"Failed to load BGM files: {e}")
             bgm_files = []
         
-        # Add special "None" option
         bgm_options = [tr("bgm.none")] + bgm_files
         
-        # Default to "default.mp3" if exists, otherwise first option
+        # 默认高亮选择名为 default 的内置音乐
         default_index = 0
         if "default.mp3" in bgm_files:
             default_index = bgm_options.index("default.mp3")
@@ -226,7 +233,7 @@ def render_bgm_section(key_prefix=""):
             key=f"{key_prefix}bgm_selector"
         )
         
-        # BGM volume slider (only show when BGM is selected)
+        # 仅当挑选了具体音乐后，才弹出音量滑块调节栏
         if bgm_choice != tr("bgm.none"):
             bgm_volume = st.slider(
                 tr("bgm.volume"),
@@ -239,11 +246,11 @@ def render_bgm_section(key_prefix=""):
                 help=tr("bgm.volume_help")
             )
         else:
-            bgm_volume = 0.2  # Default value when no BGM selected
+            bgm_volume = 0.2
         
-        # BGM preview button (only if BGM is not "None")
+        # 仅当挑选了具体音乐后，才渲染网页端内的快速试听按钮组件
         if bgm_choice != tr("bgm.none"):
-            if st.button(tr("bgm.preview"), key=f"{key_prefix}preview_bgm", use_container_width=True):
+            if st.button(tr("bgm.preview"), key=f"{key_prefix}preview_bgm", width="stretch"):
                 from pixelle_video.utils.os_util import get_resource_path, resource_exists
                 try:
                     if resource_exists("bgm", bgm_choice):
@@ -254,7 +261,6 @@ def render_bgm_section(key_prefix=""):
                 except Exception as e:
                     st.error(f"{tr('bgm.preview_failed', file=bgm_choice)}: {e}")
         
-        # Use full filename for bgm_path (including extension)
         bgm_path = None if bgm_choice == tr("bgm.none") else bgm_choice
     
     return {
@@ -264,13 +270,10 @@ def render_bgm_section(key_prefix=""):
 
 
 def render_version_info():
-    """Render version info and GitHub link"""
+    """在底侧栏显示本系统的版本号标识与给 Star 的超链接"""
     with st.container(border=True):
         st.markdown(f"**{tr('version.title')}**")
         version = get_project_version()
-        github_url = "https://github.com/AIDC-AI/Pixelle-Video"
-        
-        # Version and GitHub link in one line
         github_url = "https://github.com/AIDC-AI/Pixelle-Video"
         badge_url = "https://img.shields.io/github/stars/AIDC-AI/Pixelle-Video"
 
@@ -280,4 +283,3 @@ def render_version_info():
             f'<img src="{badge_url}" alt="GitHub stars" style="vertical-align: middle;">'
             f'</a>',
             unsafe_allow_html=True)
-

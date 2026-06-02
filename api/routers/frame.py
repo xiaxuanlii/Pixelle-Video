@@ -12,6 +12,10 @@
 
 """
 Frame/Template rendering endpoints
+
+此模块定义了与 HTML 模板渲染相关的 API 路由端点。
+主要用于将独立的 HTML 模板结合图文数据渲染成单张图片（常用于前端效果预览），
+以及解析模板内部支持的自定义注入参数。
 """
 
 from fastapi import APIRouter, HTTPException
@@ -22,6 +26,7 @@ from api.schemas.frame import FrameRenderRequest, FrameRenderResponse, TemplateP
 from pixelle_video.services.frame_html import HTMLFrameGenerator
 from pixelle_video.utils.template_util import parse_template_size, resolve_template_path
 
+# 创建带有 "/frame" 前缀的 APIRouter，并在 Swagger 中归类为 "Frame Rendering"
 router = APIRouter(prefix="/frame", tags=["Frame Rendering"])
 
 
@@ -31,24 +36,26 @@ async def render_frame(
     pixelle_video: PixelleVideoDep
 ):
     """
-    Render a single frame using HTML template
+    单帧画面渲染端点。
     
-    Generates a frame image by combining template, title, text, and image.
-    This is useful for previewing templates or generating custom frames.
+    使用底层系统（如无头浏览器 Playwright）将指定的 HTML 模板、标题、正文文本和背景图像组合起来，
+    截图生成一张静态画面。此接口非常适合用于在前端向用户提供“所见即所得”的排版预览功能。
     
-    - **template**: Template key (e.g., '1080x1920/default.html')
-    - **title**: Optional title text
-    - **text**: Frame text content
-    - **image**: Image path (can be local path or URL)
+    请求参数说明：
+    - **template**: 要使用的 HTML 模板标识或路径（例如：'1080x1920/image_default.html'）。
+    - **title**: (可选) 注入到画面中的主标题文本。
+    - **text**: 注入到画面中的核心正文/旁白内容。
+    - **image**: (可选) 注入到画面的背景图或配图路径（支持本地路径或网络 URL）。
     
-    Returns path to generated frame image.
+    返回：
+        FrameRenderResponse: 包含生成的截图文件相对路径以及实际画面的宽高像素。
     
-    Example:
+    请求示例:
     ```json
     {
         "template": "1080x1920/modern.html",
-        "title": "Welcome",
-        "text": "This is a beautiful frame with custom styling",
+        "title": "欢迎",
+        "text": "这是一个带有自定义样式的精美排版画面",
         "image": "resources/example.png"
     }
     ```
@@ -57,15 +64,16 @@ async def render_frame(
         logger.info(f"Frame render request: template={request.template}")
         
         # Resolve template path (returns absolute path with "templates/" or "data/templates/" prefix)
+        # 解析模板真实路径，自动在默认目录和自定义数据目录中寻找
         template_path = resolve_template_path(request.template)
         
-        # Parse template size
+        # Parse template size / 从模板所在目录名（如 '1080x1920'）中解析最终视频帧的尺寸
         width, height = parse_template_size(template_path)
         
-        # Create HTML frame generator
+        # Create HTML frame generator / 初始化核心的 HTML 渲染截帧器
         generator = HTMLFrameGenerator(template_path)
         
-        # Generate frame
+        # Generate frame / 执行渲染并保存为图像
         frame_path = await generator.generate_frame(
             title=request.title,
             text=request.text,
@@ -88,20 +96,21 @@ async def get_template_params(
     template: str
 ):
     """
-    Get custom parameters for a template
+    获取指定 HTML 模板的自定义参数端点。
     
-    Returns the custom parameters defined in the template HTML file.
-    These parameters can be passed via `template_params` in video generation requests.
+    解析指定的 HTML 模板文件，提取内部定义的特殊参数标签。这些参数使得模板可以在生成视频时
+    接受动态变量注入（例如动态修改主色调、背景图或特定文本）。
+    这些参数可以通过在 `/api/video/generate` 接口的 `template_params` 字段中传入。
     
-    Template parameters are defined using syntax: `{{param_name:type=default}}`
+    模板参数定义语法: `{{param_name:type=default}}`
     
-    Supported types:
-    - `text`: String input
-    - `number`: Numeric input
-    - `color`: Color picker (hex format)
-    - `bool`: Boolean checkbox
+    支持的参数类型 (type):
+    - `text`: 字符串输入框
+    - `number`: 数字输入框
+    - `color`: 颜色选择器（十六进制格式，如 #ff0000）
+    - `bool`: 布尔开关/复选框
     
-    Example template syntax:
+    HTML 模板语法示例:
     ```html
     <div style="color: {{accent_color:color=#ff0000}}">
         {{custom_text:text=Hello World}}
@@ -109,41 +118,22 @@ async def get_template_params(
     ```
     
     Args:
-        template: Template path (e.g., '1080x1920/image_default.html')
+        template: 模板的相对路径标识（例如：'1080x1920/image_default.html'）
     
     Returns:
-        Template parameters with their types, defaults, and labels
-    
-    Example response:
-    ```json
-    {
-        "template": "1080x1920/image_default.html",
-        "media_width": 1080,
-        "media_height": 1440,
-        "params": {
-            "accent_color": {
-                "type": "color",
-                "default": "#ff0000",
-                "label": "accent_color"
-            },
-            "background": {
-                "type": "text", 
-                "default": "https://example.com/bg.jpg",
-                "label": "background"
-            }
-        }
-    }
-    ```
+        TemplateParamsResponse: 包含模板允许定制的所有参数及其类型、默认值和前端展示标签。
     """
     try:
         logger.info(f"Get template params: {template}")
         
-        # Resolve template path
+        # Resolve template path / 获取文件的真实本地路径
         template_path = resolve_template_path(template)
         
-        # Create generator and parse parameters
+        # Create generator and parse parameters / 初始化渲染器并解析模板内容
         generator = HTMLFrameGenerator(template_path)
         params = generator.parse_template_parameters()
+        
+        # 获取该模板要求的内嵌媒体（视频/图片组件）预期分辨率
         media_width, media_height = generator.get_media_size()
         
         return TemplateParamsResponse(
@@ -154,6 +144,7 @@ async def get_template_params(
         )
         
     except FileNotFoundError:
+        # 模板文件不存在则抛出 404
         raise HTTPException(status_code=404, detail=f"Template not found: {template}")
     except Exception as e:
         logger.error(f"Get template params error: {e}")

@@ -13,7 +13,9 @@
 """
 Persistence Service
 
-Handles task metadata and storyboard persistence to filesystem.
+持久化文件系统服务模块。
+专门负责将流水线流转过程中的所有中间元数据（请求参数、耗时状况、各分镜剧本记录）
+格式化落地为 JSON 保存到本地硬盘。这是项目能够“回放”和重构前端历史页面的基石。
 """
 
 import json
@@ -27,64 +29,57 @@ from pixelle_video.models.storyboard import Storyboard, StoryboardFrame, Storybo
 
 class PersistenceService:
     """
-    Task persistence service using filesystem (JSON)
+    基于 JSON 和文件系统的核心任务状态存储与持久化服务。
     
-    File structure:
+    底层会组织并维护如下干净、独立的单任务沙盒目录格式：
         output/
         └── {task_id}/
-            ├── metadata.json          # Task metadata (input, result, config)
-            ├── storyboard.json        # Storyboard data (frames, prompts)
-            ├── final.mp4
-            └── frames/
+            ├── metadata.json          # 记录全局输入参数、结果特征和部分核心运行时设置
+            ├── storyboard.json        # 极其详细的剧本树形对象 (所有的图文提示词, 素材地址等)
+            ├── final.mp4              # [业务方写入] 最后的交付合并成品
+            └── frames/                # [业务方写入] 每一步的音频、图片、单切片
                 ├── 01_audio.mp3
                 ├── 01_image.png
                 └── ...
-    
-    Usage:
+                
+    使用示例:
         persistence = PersistenceService()
         
-        # Save metadata
+        # 序列化存储元数据
         await persistence.save_task_metadata(task_id, metadata)
         
-        # Save storyboard
-        await persistence.save_storyboard(task_id, storyboard)
-        
-        # Load task
-        metadata = await persistence.load_task_metadata(task_id)
-        storyboard = await persistence.load_storyboard(task_id)
-        
-        # List all tasks
+        # 分页模糊查询任务列表（将遍历 metadata 并借助预构建的 .index.json）
         tasks = await persistence.list_tasks(status="completed", limit=50)
     """
     
     def __init__(self, output_dir: str = "output"):
         """
-        Initialize persistence service
+        初始化持久化服务。
         
         Args:
-            output_dir: Base output directory (default: "output")
+            output_dir: 存放所有生成任务的主根目录名称 (默认 "output")。
         """
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(exist_ok=True)
         
-        # Index file for fast listing
+        # 借助该隐藏索引文件，防止未来产出十万条视频任务后全盘遍历导致文件系统卡死
         self.index_file = self.output_dir / ".index.json"
         self._ensure_index()
     
     def get_task_dir(self, task_id: str) -> Path:
-        """Get task directory path"""
+        """获取专属某个 task_id 的相对工作区地址"""
         return self.output_dir / task_id
     
     def get_metadata_path(self, task_id: str) -> Path:
-        """Get metadata.json path"""
+        """获取专属某个任务的全局元数据 JSON 地址"""
         return self.get_task_dir(task_id) / "metadata.json"
     
     def get_storyboard_path(self, task_id: str) -> Path:
-        """Get storyboard.json path"""
+        """获取专属某个任务的具体剧本分镜 JSON 地址"""
         return self.get_task_dir(task_id) / "storyboard.json"
     
     # ========================================================================
-    # Metadata Operations
+    # Metadata Operations / 元数据持久化写入相关
     # ========================================================================
     
     async def save_task_metadata(
@@ -93,18 +88,18 @@ class PersistenceService:
         metadata: Dict[str, Any]
     ):
         """
-        Save task metadata to filesystem
+        保存任务级别的元数据（入参、执行时限和最终结果）。
         
         Args:
-            task_id: Task ID
-            metadata: Metadata dict with structure:
+            task_id: 任务标识 UUID。
+            metadata: 需要存盘的字典，格式要求如下：
                 {
                     "task_id": str,
                     "created_at": str,
-                    "completed_at": str (optional),
+                    "completed_at": str (可选),
                     "status": str,
                     "input": dict,
-                    "result": dict (optional),
+                    "result": dict (可选),
                     "config": dict
                 }
         """
@@ -113,11 +108,9 @@ class PersistenceService:
             task_dir.mkdir(parents=True, exist_ok=True)
             
             metadata_path = self.get_metadata_path(task_id)
-            
-            # Ensure task_id is set
             metadata["task_id"] = task_id
             
-            # Convert datetime objects to ISO format strings
+            # 将运行时的 datetime 强制转义为 ISO 以保证跨平台时区识别解析
             if "created_at" in metadata and isinstance(metadata["created_at"], datetime):
                 metadata["created_at"] = metadata["created_at"].isoformat()
             if "completed_at" in metadata and isinstance(metadata["completed_at"], datetime):
@@ -128,7 +121,7 @@ class PersistenceService:
             
             logger.debug(f"Saved task metadata: {task_id}")
             
-            # Update index
+            # 同时将关键查询信息抽出存入顶层的全局快速查询索引表中
             await self._update_index_for_task(task_id, metadata)
             
         except Exception as e:
@@ -137,13 +130,7 @@ class PersistenceService:
     
     async def load_task_metadata(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
-        Load task metadata from filesystem
-        
-        Args:
-            task_id: Task ID
-            
-        Returns:
-            Metadata dict or None if not found
+        从物理磁盘唤醒读取元数据 JSON 文件。
         """
         try:
             metadata_path = self.get_metadata_path(task_id)
@@ -167,12 +154,8 @@ class PersistenceService:
         error: Optional[str] = None
     ):
         """
-        Update task status in metadata
-        
-        Args:
-            task_id: Task ID
-            status: New status (pending, running, completed, failed, cancelled)
-            error: Error message (optional, for failed status)
+        向外提供的一键更新任务状态及失败日志的方法。
+        主要供后台的任务执行管理器调用，无需重复组织字典即可覆盖 status。
         """
         try:
             metadata = await self.load_task_metadata(task_id)
@@ -194,7 +177,7 @@ class PersistenceService:
             logger.error(f"Failed to update task status {task_id}: {e}")
     
     # ========================================================================
-    # Storyboard Operations
+    # Storyboard Operations / 分镜剧本结构树化写入相关
     # ========================================================================
     
     async def save_storyboard(
@@ -203,11 +186,8 @@ class PersistenceService:
         storyboard: Storyboard
     ):
         """
-        Save storyboard to filesystem
-        
-        Args:
-            task_id: Task ID
-            storyboard: Storyboard instance
+        持久化分镜序列对象为标准 JSON。
+        会利用本类内的辅助方法对 Pydantic 及 Dataclass 进行安全序列化。
         """
         try:
             task_dir = self.get_task_dir(task_id)
@@ -215,7 +195,6 @@ class PersistenceService:
             
             storyboard_path = self.get_storyboard_path(task_id)
             
-            # Convert storyboard to dict
             storyboard_dict = self._storyboard_to_dict(storyboard)
             
             with open(storyboard_path, "w", encoding="utf-8") as f:
@@ -229,13 +208,7 @@ class PersistenceService:
     
     async def load_storyboard(self, task_id: str) -> Optional[Storyboard]:
         """
-        Load storyboard from filesystem
-        
-        Args:
-            task_id: Task ID
-            
-        Returns:
-            Storyboard instance or None if not found
+        重新唤醒加载历史的图文声分离资源表及生成足迹。
         """
         try:
             storyboard_path = self.get_storyboard_path(task_id)
@@ -246,9 +219,7 @@ class PersistenceService:
             with open(storyboard_path, "r", encoding="utf-8") as f:
                 storyboard_dict = json.load(f)
             
-            # Convert dict to storyboard
             storyboard = self._dict_to_storyboard(storyboard_dict)
-            
             return storyboard
             
         except Exception as e:
@@ -256,7 +227,7 @@ class PersistenceService:
             return None
     
     # ========================================================================
-    # Task Listing & Querying
+    # Task Listing & Querying / 历史回溯列表与筛选工具
     # ========================================================================
     
     async def list_tasks(
@@ -266,28 +237,21 @@ class PersistenceService:
         offset: int = 0
     ) -> List[Dict[str, Any]]:
         """
-        List tasks with optional filtering
-        
-        Args:
-            status: Filter by status (pending, running, completed, failed, cancelled)
-            limit: Maximum number of tasks to return
-            offset: Number of tasks to skip
-            
-        Returns:
-            List of metadata dicts, sorted by created_at descending
+        全局遍历获取所有产生的业务任务（按时间倒排）。
+        注意：如果数量过大此方法可能有性能瓶颈，建议改用依托缓存表的 `list_tasks_paginated`。
         """
         try:
             index = self._load_index()
             tasks = index.get("tasks", [])
 
-            # Filter by status
+            # Filter by status / 按状态筛选
             if status:
                 tasks = [t for t in tasks if t.get("status") == status]
 
-            # Sort by created_at descending
+            # Sort by created_at descending / 按创建时间倒序排列
             tasks.sort(key=lambda t: t.get("created_at", ""), reverse=True)
 
-            # Apply pagination
+            # Apply pagination / 应用分页
             return tasks[offset:offset + limit]
 
         except Exception as e:
@@ -295,15 +259,31 @@ class PersistenceService:
             return []
     
     async def task_exists(self, task_id: str) -> bool:
-        """Check if task exists"""
+        """快速判断一个生成的流水号文件夹是否实际存活"""
         return self.get_task_dir(task_id).exists()
 
+    async def delete_task(self, task_id: str):
+        """
+        危险操作：清空抹除指定生成的任务所有的上下文及其产生的所有小视频、录音和长视频产物。
+        """
+        try:
+            task_dir = self.get_task_dir(task_id)
+
+            if task_dir.exists():
+                import shutil
+                shutil.rmtree(task_dir)
+                logger.info(f"Deleted task: {task_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to delete task {task_id}: {e}")
+            raise
+
     # ========================================================================
-    # Serialization Helpers
+    # Serialization Helpers / 辅助类：对象字典相互清洗序列化
     # ========================================================================
     
     def _storyboard_to_dict(self, storyboard: Storyboard) -> Dict[str, Any]:
-        """Convert Storyboard to dict for JSON serialization"""
+        """将 Dataclass Storyboard 扁平化安全转为 Dict"""
         return {
             "title": storyboard.title,
             "config": self._config_to_dict(storyboard.config),
@@ -316,7 +296,7 @@ class PersistenceService:
         }
     
     def _dict_to_storyboard(self, data: Dict[str, Any]) -> Storyboard:
-        """Convert dict to Storyboard instance"""
+        """从扁平 JSON 反射重新还原为可交互的业务 Dataclass"""
         return Storyboard(
             title=data["title"],
             config=self._dict_to_config(data["config"]),
@@ -329,7 +309,6 @@ class PersistenceService:
         )
     
     def _config_to_dict(self, config: StoryboardConfig) -> Dict[str, Any]:
-        """Convert StoryboardConfig to dict"""
         return {
             "task_id": config.task_id,
             "n_storyboard": config.n_storyboard,
@@ -351,7 +330,6 @@ class PersistenceService:
         }
     
     def _dict_to_config(self, data: Dict[str, Any]) -> StoryboardConfig:
-        """Convert dict to StoryboardConfig"""
         return StoryboardConfig(
             task_id=data.get("task_id"),
             n_storyboard=data.get("n_storyboard", 5),
@@ -365,15 +343,14 @@ class PersistenceService:
             tts_workflow=data.get("tts_workflow"),
             tts_speed=data.get("tts_speed"),
             ref_audio=data.get("ref_audio"),
-            media_width=data.get("media_width", data.get("image_width", 1024)),  # Backward compatibility
-            media_height=data.get("media_height", data.get("image_height", 1024)),  # Backward compatibility
-            media_workflow=data.get("media_workflow", data.get("image_workflow")),  # Backward compatibility
-            frame_template=data.get("frame_template", "1080x1920/default.html"),
+            media_width=data.get("media_width", data.get("image_width", 1024)),
+            media_height=data.get("media_height", data.get("image_height", 1024)),
+            media_workflow=data.get("media_workflow", data.get("image_workflow")),
+            frame_template=data.get("frame_template", "1080x1920/image_default.html"),
             template_params=data.get("template_params"),
         )
     
     def _frame_to_dict(self, frame: StoryboardFrame) -> Dict[str, Any]:
-        """Convert StoryboardFrame to dict"""
         return {
             "index": frame.index,
             "narration": frame.narration,
@@ -389,7 +366,6 @@ class PersistenceService:
         }
     
     def _dict_to_frame(self, data: Dict[str, Any]) -> StoryboardFrame:
-        """Convert dict to StoryboardFrame"""
         return StoryboardFrame(
             index=data["index"],
             narration=data["narration"],
@@ -405,7 +381,6 @@ class PersistenceService:
         )
     
     def _content_metadata_to_dict(self, metadata: ContentMetadata) -> Dict[str, Any]:
-        """Convert ContentMetadata to dict"""
         return {
             "title": metadata.title,
             "author": metadata.author,
@@ -417,7 +392,6 @@ class PersistenceService:
         }
     
     def _dict_to_content_metadata(self, data: Dict[str, Any]) -> ContentMetadata:
-        """Convert dict to ContentMetadata"""
         return ContentMetadata(
             title=data["title"],
             author=data.get("author"),
@@ -429,16 +403,16 @@ class PersistenceService:
         )
     
     # ========================================================================
-    # Index Management (for fast listing)
+    # Index Management / 为缓解磁盘压力准备的高性能大盘缓存记录表
     # ========================================================================
     
     def _ensure_index(self):
-        """Ensure index file exists, create if not"""
+        """安全保护：如果用于查询缓冲的索列表没被找到，则自动生成初始的空状态表"""
         if not self.index_file.exists():
             self._save_index({"version": "1.0", "tasks": []})
     
     def _load_index(self) -> Dict[str, Any]:
-        """Load index from file"""
+        """将缓存数据库（极小尺寸JSON，常驻内存安全）载入提供遍历服务"""
         try:
             with open(self.index_file, "r", encoding="utf-8") as f:
                 return json.load(f)
@@ -447,7 +421,7 @@ class PersistenceService:
             return {"version": "1.0", "tasks": []}
     
     def _save_index(self, index_data: Dict[str, Any]):
-        """Save index to file"""
+        """序列化写入保护索引池表，将打上记录最后变更的时间"""
         try:
             index_data["last_updated"] = datetime.now().isoformat()
             with open(self.index_file, "w", encoding="utf-8") as f:
@@ -456,26 +430,21 @@ class PersistenceService:
             logger.error(f"Failed to save index: {e}")
     
     async def _update_index_for_task(self, task_id: str, metadata: Dict[str, Any]):
-        """Update index entry for a specific task"""
+        """在特定项目流转保存时被回调的方法，对高速索引缓存表实现追加或者复写。"""
         index = self._load_index()
         
-        # Try to get title from multiple sources
         title = metadata.get("input", {}).get("title")
         if not title or title == "":
-            # Try to get title from storyboard if input title is empty
             storyboard = await self.load_storyboard(task_id)
             if storyboard and storyboard.title:
                 title = storyboard.title
             else:
-                # Fall back to using input text preview
                 input_text = metadata.get("input", {}).get("text", "")
                 if input_text:
-                    # Use first 30 characters of input text as title
                     title = input_text[:30] + ("..." if len(input_text) > 30 else "")
                 else:
                     title = "Untitled"
         
-        # Extract key info for index
         index_entry = {
             "task_id": task_id,
             "created_at": metadata.get("created_at"),
@@ -488,7 +457,6 @@ class PersistenceService:
             "video_path": metadata.get("result", {}).get("video_path"),
         }
         
-        # Update or append
         tasks = index.get("tasks", [])
         existing_idx = next((i for i, t in enumerate(tasks) if t["task_id"] == task_id), None)
         
@@ -501,11 +469,10 @@ class PersistenceService:
         self._save_index(index)
     
     async def rebuild_index(self):
-        """Rebuild index by scanning all task directories"""
+        """修复手段：当文件系统内手动发生破坏时，遍历扫描一切 output 数据并进行耗时的全局重编译索引构建。"""
         logger.info("Rebuilding task index...")
         index = {"version": "1.0", "tasks": []}
         
-        # Scan all directories
         for task_dir in self.output_dir.iterdir():
             if not task_dir.is_dir() or task_dir.name.startswith("."):
                 continue
@@ -514,23 +481,18 @@ class PersistenceService:
             metadata = await self.load_task_metadata(task_id)
             
             if metadata:
-                # Try to get title from multiple sources
                 title = metadata.get("input", {}).get("title")
                 if not title or title == "":
-                    # Try to get title from storyboard if input title is empty
                     storyboard = await self.load_storyboard(task_id)
                     if storyboard and storyboard.title:
                         title = storyboard.title
                     else:
-                        # Fall back to using input text preview
                         input_text = metadata.get("input", {}).get("text", "")
                         if input_text:
-                            # Use first 30 characters of input text as title
                             title = input_text[:30] + ("..." if len(input_text) > 30 else "")
                         else:
                             title = "Untitled"
                 
-                # Add to index
                 index["tasks"].append({
                     "task_id": task_id,
                     "created_at": metadata.get("created_at"),
@@ -547,7 +509,7 @@ class PersistenceService:
         logger.info(f"Index rebuilt: {len(index['tasks'])} tasks")
     
     # ========================================================================
-    # Paginated Listing
+    # Paginated Listing / 面向列表的游标查询
     # ========================================================================
     
     async def list_tasks_paginated(
@@ -559,32 +521,17 @@ class PersistenceService:
         sort_order: str = "desc"
     ) -> Dict[str, Any]:
         """
-        List tasks with pagination
-        
-        Args:
-            page: Page number (1-indexed)
-            page_size: Items per page
-            status: Filter by status (optional)
-            sort_by: Sort field (created_at, completed_at, title, duration)
-            sort_order: Sort order (asc, desc)
+        利用高度索引缓存服务快速分页查询展示视频处理履历列表。
         
         Returns:
-            {
-                "tasks": [...],          # List of task summaries
-                "total": 100,            # Total matching tasks
-                "page": 1,               # Current page
-                "page_size": 20,         # Items per page
-                "total_pages": 5         # Total pages
-            }
+            Dict 包含总条数、页数、单页的数据包裹的组装分页对象。
         """
         index = self._load_index()
         tasks = index.get("tasks", [])
         
-        # Filter by status
         if status:
             tasks = [t for t in tasks if t.get("status") == status]
         
-        # Sort
         reverse = (sort_order == "desc")
         if sort_by in ["created_at", "completed_at"]:
             tasks.sort(
@@ -594,7 +541,6 @@ class PersistenceService:
         elif sort_by in ["title", "duration", "n_frames"]:
             tasks.sort(key=lambda t: t.get(sort_by, ""), reverse=reverse)
         
-        # Paginate
         total = len(tasks)
         total_pages = (total + page_size - 1) // page_size
         start_idx = (page - 1) * page_size
@@ -610,22 +556,11 @@ class PersistenceService:
         }
     
     # ========================================================================
-    # Statistics
+    # Statistics / 大盘业务看板分析
     # ========================================================================
     
     async def get_statistics(self) -> Dict[str, Any]:
-        """
-        Get statistics about all tasks
-        
-        Returns:
-            {
-                "total_tasks": 100,
-                "completed": 95,
-                "failed": 5,
-                "total_duration": 3600.5,  # seconds
-                "total_size": 1024000000,  # bytes
-            }
-        """
+        """为看板和首页提供针对当前磁盘消耗的总体视频合成量及处理情况的总计度量。"""
         index = self._load_index()
         tasks = index.get("tasks", [])
         
@@ -645,13 +580,7 @@ class PersistenceService:
     
     async def delete_task(self, task_id: str) -> bool:
         """
-        Delete a task and all its files
-        
-        Args:
-            task_id: Task ID to delete
-        
-        Returns:
-            True if successful, False otherwise
+        危险操作：安全擦除包含文件和索引表的整个任务目录所有流转资产痕迹。
         """
         try:
             import shutil
@@ -661,7 +590,6 @@ class PersistenceService:
                 shutil.rmtree(task_dir)
                 logger.info(f"Deleted task directory: {task_dir}")
             
-            # Update index
             index = self._load_index()
             tasks = index.get("tasks", [])
             tasks = [t for t in tasks if t["task_id"] != task_id]
@@ -672,4 +600,3 @@ class PersistenceService:
         except Exception as e:
             logger.error(f"Failed to delete task {task_id}: {e}")
             return False
-
