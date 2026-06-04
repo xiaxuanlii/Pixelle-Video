@@ -64,6 +64,7 @@ class ComfyBaseService:
     
     def _scan_workflows(self) -> List[Dict[str, Any]]:
         """
+        """
         Scan workflows/source/*.json files from all source directories (merged from workflows/ and data/workflows/)
         基于约定的 WORKFLOW_PREFIX 从多层次结构中组合搜索符合当前业务领域的工作流清单库，并提取属性。
 
