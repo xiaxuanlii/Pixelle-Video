@@ -13,7 +13,8 @@
 """
 LLM utility functions for model discovery and connection testing.
 
-Uses the standard OpenAI-compatible /v1/models endpoint.
+大语言模型连接测试与探测工具库。
+使用兼容 OpenAI API 规范的 `/v1/models` 端点探测服务可用性及当前后端的模型列表。
 """
 
 from typing import List, Tuple
@@ -23,28 +24,29 @@ from loguru import logger
 
 def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -> List[str]:
     """
-    Fetch available models from an OpenAI-compatible API endpoint.
+    探测目标 API 节点上所有可以提供调用的大模型列表。
     
-    Uses the standard GET /v1/models endpoint with Bearer token authentication.
+    使用标准的 GET /v1/models 端点，并采用传入的 api_key 进行 Bearer 验证。
     
     Args:
-        api_key: The API key for authentication
-        base_url: The base URL of the API (e.g., https://api.openai.com/v1)
-        timeout: Request timeout in seconds
+        api_key: 验证密钥。
+        base_url: 基础地址 (例如 https://api.openai.com/v1)。
+        timeout: 超时时间（秒）。
     
     Returns:
-        List of model IDs available from the API
-    
+        List[str]: 模型标识名称列表。
+        
     Raises:
-        httpx.HTTPStatusError: If the API returns an error status code
-        httpx.RequestError: If there's a network error
+        httpx.HTTPStatusError: 网络请求返回非 2xx 状态码时。
+        httpx.RequestError: 网络完全不通时。
     """
     # Normalize base_url - ensure it ends with /v1 or similar
     base_url = base_url.rstrip("/")
     
     # Build the models endpoint URL
-    # Handle cases where base_url might or might not include /v1
-    if base_url.endswith("/v1"):
+    # Handle cases where base_url already contains a version path (/v1, /v4, etc.)
+    import re
+    if re.search(r'/v\d+$', base_url):
         models_url = f"{base_url}/models"
     else:
         models_url = f"{base_url}/v1/models"
@@ -72,18 +74,21 @@ def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -
 
 def test_llm_connection(api_key: str, base_url: str, timeout: float = 10.0) -> Tuple[bool, str, int]:
     """
-    Test the LLM API connection by attempting to fetch the models list.
+    全面测试 LLM 服务的连通性。
+    
+    尝试调用模型列表接口。根据不同的报错类型进行分类拦截，并返回友好的中文调试信息。
+    主要用于在 Web UI 控制台中展示服务器的连接状态，帮助用户排查配置错误。
     
     Args:
-        api_key: The API key for authentication
-        base_url: The base URL of the API
-        timeout: Request timeout in seconds
+        api_key: 验证密钥。
+        base_url: 基础地址。
+        timeout: 超时时间（秒）。
     
     Returns:
-        Tuple of (success: bool, message: str, model_count: int)
-        - success: True if connection succeeded
-        - message: Human-readable status message
-        - model_count: Number of models available (0 if failed)
+        Tuple[bool, str, int]:
+        - success: 成功为 True。
+        - message: 带有可读性的提示反馈文本。
+        - model_count: 探测到的可用模型数量。
     """
     try:
         models = fetch_available_models(api_key, base_url, timeout)

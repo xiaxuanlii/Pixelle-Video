@@ -13,17 +13,17 @@
 """
 Pixelle-Video Services
 
-Core services providing atomic capabilities.
+系统核心内部原子服务能力层大礼包。
 
-Services:
-- LLMService: LLM text generation
-- TTSService: Text-to-speech
-- MediaService: Media generation (image & video)
-- VideoService: Video processing
-- FrameProcessor: Frame processing orchestrator
-- PersistenceService: Task metadata and storyboard persistence
-- HistoryManager: History management business logic
-- ComfyBaseService: Base class for ComfyUI-based services
+本目录统一暴露出各项专职的基础服务驱动器实现：
+- LLMService: 大语言模型的统一直连管道与数据清洗器
+- TTSService: 处理长文本朗读转音的系统
+- MediaService: ComfyUI 画师系统的分发调度核心
+- VideoService: 本地级 ffmpeg 离线剪辑剪切混合轨道大师
+- FrameProcessor: 单帧渲染与混合管道总装控制器
+- PersistenceService: 全生命周期的任务结果持久化记录归档器
+- HistoryManager: 处理查询操作等交互向业务的高级组件
+- ComfyBaseService: 以上涉及 ComfyUI 流程调用的底座抽象父类
 """
 
 from pixelle_video.services.comfy_base_service import ComfyBaseService
@@ -35,7 +35,7 @@ from pixelle_video.services.frame_processor import FrameProcessor
 from pixelle_video.services.persistence import PersistenceService
 from pixelle_video.services.history_manager import HistoryManager
 
-# Backward compatibility alias
+# 为了防止兼容性问题破坏旧架构对图片专用生成的引用而采用的前置保留处理名
 ImageService = MediaService
 
 __all__ = [
@@ -49,4 +49,3 @@ __all__ = [
     "PersistenceService",
     "HistoryManager",
 ]
-

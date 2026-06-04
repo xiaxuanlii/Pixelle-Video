@@ -2,16 +2,18 @@
 """
 Windows Package Builder for Pixelle-Video
 
-This script automates the creation of a Windows portable package:
-1. Downloads Python embedded distribution
-2. Downloads FFmpeg portable
-3. Prepares Python environment (enable site-packages, install pip)
-4. Installs project dependencies
-5. Copies project files
-6. Generates launcher scripts
-7. Creates final ZIP package
+Pixelle-Video 的 Windows 便携式打包构建脚本。
 
-Usage:
+这个脚本会自动执行以下流程来创建一个“开箱即用”的绿色版环境：
+1. 下载 Python 的 embed 嵌入式发行版（绿色版）。
+2. 下载 FFmpeg 便携版（处理视频所需）。
+3. 准备 Python 运行环境 (开启 site-packages 并安装 pip)。
+4. 安装本项目的全部依赖。
+5. 拷贝本项目的源代码。
+6. 根据模板生成一键启动的 bat 脚本。
+7. 最后将其全部压缩成一个干净的 ZIP 压缩包。
+
+用法:
     python build.py [--config CONFIG] [--output OUTPUT] [--cn-mirror]
 """
 
@@ -36,7 +38,7 @@ except ImportError:
 
 
 class Color:
-    """ANSI color codes for terminal output"""
+    """终端输出的 ANSI 颜色高亮代码常量"""
     HEADER = '\033[95m'
     BLUE = '\033[94m'
     CYAN = '\033[96m'
@@ -48,33 +50,33 @@ class Color:
 
 
 class WindowsPackageBuilder:
-    """Build Windows portable package for Pixelle-Video"""
+    """Pixelle-Video 绿色免安装版构建类"""
     
     def __init__(self, config_path: str, output_dir: Optional[str] = None, use_cn_mirror: bool = False):
         self.config_path = Path(config_path)
         self.script_dir = Path(__file__).parent
         self.project_root = self.script_dir.parent.parent
         
-        # Load configuration
+        # Load configuration / 加载构建所需的配置文件
         with open(self.config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
         
-        # Override mirror setting if specified
+        # Override mirror setting if specified / 如果传入参数，强制使用国内镜像源加速下载
         if use_cn_mirror:
             self.config['mirrors']['use_cn_mirror'] = True
         
-        # Setup paths
+        # Setup paths / 设定各类工作目录路径
         self.output_dir = Path(output_dir) if output_dir else self.project_root / self.config['build']['output_dir']
         self.cache_dir = self.project_root / self.config['cache']['cache_dir']
         self.templates_dir = self.script_dir / 'templates'
         
-        # Get version from pyproject.toml
+        # Get version from pyproject.toml / 动态从 pyproject 中读取版本号
         self.version = self._read_version()
         self.package_name = f"{self.config['package']['name']}-v{self.version}-{self.config['package']['architecture']}"
         self.build_dir = self.output_dir / self.package_name
         
     def _read_version(self) -> str:
-        """Read version from pyproject.toml"""
+        """读取并解析 pyproject.toml 中的版本字段"""
         pyproject_path = self.project_root / 'pyproject.toml'
         try:
             import tomllib
@@ -83,9 +85,9 @@ class WindowsPackageBuilder:
             try:
                 import tomli as tomllib
             except ImportError:
-                # Simple regex fallback
+                # 极简正则匹配兜底
                 import re
-                with open(pyproject_path, 'r') as f:
+                with open(pyproject_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                     match = re.search(r'version\s*=\s*["\']([^"\']+)["\']', content)
                     if match:
@@ -97,7 +99,7 @@ class WindowsPackageBuilder:
             return pyproject.get('project', {}).get('version', '0.1.0')
     
     def log(self, message: str, level: str = "INFO"):
-        """Print colored log message"""
+        """带有层级色彩的高亮日志打印"""
         colors = {
             "INFO": Color.BLUE,
             "SUCCESS": Color.GREEN,
@@ -109,7 +111,7 @@ class WindowsPackageBuilder:
         print(f"{color}[{level}]{Color.RESET} {message}")
     
     def download_file(self, url: str, output_path: Path, description: str = "", max_retries: int = 3) -> bool:
-        """Download file with progress indication and retry support"""
+        """带进度条显示并支持重试容错的文件下载器"""
         import ssl
         import urllib.request
         
@@ -120,7 +122,7 @@ class WindowsPackageBuilder:
                 
                 self.log(f"Downloading {description or url}...")
                 
-                # Create SSL context that's more lenient
+                # 创建更宽松的 SSL 上下文环境以防网络拦截
                 ssl_context = ssl.create_default_context()
                 ssl_context.check_hostname = False
                 ssl_context.verify_mode = ssl.CERT_NONE
@@ -130,7 +132,7 @@ class WindowsPackageBuilder:
                     percent = min(downloaded / total_size * 100, 100) if total_size > 0 else 0
                     print(f"\r  Progress: {percent:.1f}%", end='', flush=True)
                 
-                # Try with urllib first
+                # 尝试用自带的 urllib 获取
                 opener = urllib.request.build_opener(urllib.request.HTTPSHandler(context=ssl_context))
                 urllib.request.install_opener(opener)
                 urlretrieve(url, output_path, reporthook=report_progress)
@@ -145,33 +147,32 @@ class WindowsPackageBuilder:
                     time.sleep(2)  # Wait before retry
                 else:
                     self.log(f"All download attempts failed", "ERROR")
-                    # Try with curl as fallback
+                    # 作为最后的挣扎，尝试调用系统的 curl 命令
                     return self._download_with_curl(url, output_path, description)
         
         return False
     
     def _find_suitable_python(self) -> Optional[str]:
-        """Find a suitable Python 3.11+ for installing dependencies"""
+        """交叉平台构建时，在宿主系统中寻找一个高于等于 3.11 的 Python 环境来负责安装依赖"""
         candidates = [
-            # Try common locations for newer Python versions
             '/Users/puke/miniforge3/bin/python3',  # User's conda
             '/opt/homebrew/bin/python3',           # Homebrew
             '/usr/local/bin/python3',              # Manual install
         ]
         
-        # Also check what's in PATH
+        # 嗅探当前环境变量中的 PATH
         for i in range(11, 14):  # Python 3.11, 3.12, 3.13
             for py_name in [f'python3.{i}', f'python{i}']:
                 found = shutil.which(py_name)
                 if found and found not in candidates:
                     candidates.append(found)
         
-        # Check generic python3
+        # 嗅探通用的 python3 软链
         python3_path = shutil.which('python3')
         if python3_path and '.venv' not in python3_path:
             candidates.append(python3_path)
         
-        # Test each candidate
+        # 逐个对齐进行版本可用性测试
         for candidate in candidates:
             try:
                 if not candidate:
@@ -199,7 +200,7 @@ class WindowsPackageBuilder:
                     
                     # Need Python 3.11+
                     if major == 3 and minor >= 11:
-                        # Check if pip is available
+                        # 检查系统 pip 是否安好
                         pip_check = subprocess.run(
                             [candidate, '-m', 'pip', '--version'],
                             capture_output=True,
@@ -214,7 +215,7 @@ class WindowsPackageBuilder:
         return None
     
     def _download_with_curl(self, url: str, output_path: Path, description: str = "") -> bool:
-        """Fallback download method using curl"""
+        """兜底降级方法：利用系统自带的 curl 命令行工具下载"""
         try:
             self.log(f"Trying curl fallback for {description}...")
             result = subprocess.run(
@@ -230,7 +231,7 @@ class WindowsPackageBuilder:
         return False
     
     def download_python(self) -> Path:
-        """Download Python embedded distribution"""
+        """下载嵌入式 (Embed) 的免安装版 Python"""
         python_config = self.config['python']
         cache_file = self.cache_dir / f"python-{python_config['version']}-embed-amd64.zip"
         
@@ -240,7 +241,7 @@ class WindowsPackageBuilder:
         
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # Choose URL based on mirror setting
+        # 智能选择是否使用境内代理地址加速
         url = python_config['mirror_url'] if self.config['mirrors']['use_cn_mirror'] else python_config['download_url']
         
         if self.download_file(url, cache_file, f"Python {python_config['version']}"):
@@ -249,7 +250,7 @@ class WindowsPackageBuilder:
             raise RuntimeError("Failed to download Python")
     
     def download_ffmpeg(self) -> Path:
-        """Download FFmpeg portable"""
+        """下载适用于 Windows 平台的 FFmpeg 静态工具包"""
         ffmpeg_config = self.config['ffmpeg']
         cache_file = self.cache_dir / f"ffmpeg-{ffmpeg_config['version']}-win64.zip"
         
@@ -267,14 +268,14 @@ class WindowsPackageBuilder:
             raise RuntimeError("Failed to download FFmpeg")
     
     def extract_python(self, zip_path: Path, target_dir: Path):
-        """Extract Python embedded distribution"""
+        """将压缩包释放进预设的 python 目录区"""
         self.log(f"Extracting Python to {target_dir}...")
         target_dir.mkdir(parents=True, exist_ok=True)
         
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(target_dir)
         
-        # Add execute permissions to .exe files (needed on Unix systems)
+        # 为了兼容跨平台打包，在 Unix 宿主机上进行构建时添加可执行权限
         if os.name != 'nt':  # Not on Windows
             for exe_file in target_dir.glob('*.exe'):
                 os.chmod(exe_file, 0o755)
@@ -284,7 +285,7 @@ class WindowsPackageBuilder:
         self.log("Python extracted successfully", "SUCCESS")
     
     def extract_ffmpeg(self, zip_path: Path, target_dir: Path):
-        """Extract FFmpeg portable"""
+        """将压缩包释放并抽取最终需要的 FFmpeg bin 二进制子目录"""
         self.log(f"Extracting FFmpeg to {target_dir}...")
         temp_extract = target_dir.parent / "ffmpeg_temp"
         temp_extract.mkdir(parents=True, exist_ok=True)
@@ -292,7 +293,7 @@ class WindowsPackageBuilder:
         with zipfile.ZipFile(zip_path, 'r') as zip_ref:
             zip_ref.extractall(temp_extract)
         
-        # Find the bin directory (FFmpeg archive has nested structure)
+        # 遍历搜寻实际包含 exe 的 bin 文件夹层次
         bin_dir = None
         for root, dirs, files in os.walk(temp_extract):
             if 'bin' in dirs:
@@ -308,16 +309,19 @@ class WindowsPackageBuilder:
             raise RuntimeError("FFmpeg bin directory not found in archive")
     
     def prepare_python_environment(self, python_dir: Path):
-        """Prepare Python environment: enable site-packages"""
+        """
+        准备好绿色免安装的 Python 宿主：
+        重点 1：通过修改 ._pth 文件开启对 site-packages 的搜索许可。
+        重点 2：下载并静默装配 pip 工具以便稍后拉取依赖。
+        """
         self.log("Preparing Python environment...")
         
-        # Modify python311._pth to enable site-packages
+        # 开启隔离版 Python 的站点包库搜索 (移除 import site 前的注释符号)
         pth_file = python_dir / "python311._pth"
         if pth_file.exists():
-            with open(pth_file, 'r') as f:
+            with open(pth_file, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
             
-            # Uncomment "import site" line or add it
             modified = False
             for i, line in enumerate(lines):
                 if line.strip().startswith('#import site'):
@@ -328,15 +332,13 @@ class WindowsPackageBuilder:
             if not modified and 'import site' not in ''.join(lines):
                 lines.append('import site\n')
             
-            with open(pth_file, 'w') as f:
+            with open(pth_file, 'w', encoding='utf-8') as f:
                 f.writelines(lines)
             
             self.log("Enabled site-packages in Python", "SUCCESS")
         
-        # Note: On non-Windows systems, we can't run python.exe directly
-        # Pip and dependencies will be installed using system Python
+        # 仅在 Windows 下支持直接调用刚才释放出来的 python.exe
         if os.name == 'nt':
-            # On Windows, we can install pip directly
             python_exe = python_dir / "python.exe"
             get_pip_path = self.cache_dir / "get-pip.py"
             
@@ -361,10 +363,9 @@ class WindowsPackageBuilder:
             self.log("Dependencies will be installed using system Python", "INFO")
     
     def install_dependencies(self, python_dir: Path):
-        """Install project dependencies"""
+        """在配置好的便携隔离 Python 容器中植入要求的所有项目依赖库"""
         self.log("Installing project dependencies...")
         
-        # Determine target directory for site-packages
         site_packages = python_dir / "Lib" / "site-packages"
         site_packages.mkdir(parents=True, exist_ok=True)
         
@@ -372,7 +373,7 @@ class WindowsPackageBuilder:
             # On Windows, use the embedded Python
             python_exe = python_dir / "python.exe"
             
-            # Install uv first if configured
+            # 使用超级加速的 Rust 构建工具 uv 替代 pip
             if self.config['build'].get('use_uv', True):
                 self.log("Installing uv...")
                 subprocess.run(
@@ -380,7 +381,7 @@ class WindowsPackageBuilder:
                     check=True
                 )
             
-            # Install dependencies
+            # 正式安装所需的依赖清单
             if self.config['build'].get('use_uv', True):
                 cmd = [str(python_exe), "-m", "uv", "pip", "install", "-e", str(self.project_root)]
                 if self.config['mirrors']['use_cn_mirror']:
@@ -399,10 +400,9 @@ class WindowsPackageBuilder:
                 self.log(f"Dependency installation failed:\n{result.stderr}", "ERROR")
                 raise RuntimeError("Failed to install dependencies")
         else:
-            # Cross-platform build: use system Python to install to target directory
+            # 跨平台宿主机兼容打包（交叉编译构建时）
             self.log("Cross-platform build: using system Python to install dependencies")
             
-            # Find a Python 3.11+ executable (not from project venv)
             python_cmd = self._find_suitable_python()
             
             if not python_cmd:
@@ -411,7 +411,7 @@ class WindowsPackageBuilder:
             
             self.log(f"Using Python: {python_cmd}")
             
-            # Use pip with --target to install to specific directory
+            # 借助 --target 参数强行将三方依赖全部定向打包装入便携包内的子目录中
             cmd = [
                 python_cmd, "-m", "pip", "install",
                 "--target", str(site_packages),
@@ -419,7 +419,7 @@ class WindowsPackageBuilder:
                 "--no-warn-script-location"
             ]
             
-            # Read dependencies from pyproject.toml
+            # 获取解析项目依赖列表
             try:
                 import tomllib
             except ImportError:
@@ -438,9 +438,8 @@ class WindowsPackageBuilder:
                 # Simple fallback: read from pyproject.toml manually
                 import re
                 pyproject_path = self.project_root / "pyproject.toml"
-                with open(pyproject_path, 'r') as f:
+                with open(pyproject_path, 'r', encoding='utf-8') as f:
                     content = f.read()
-                    # Find dependencies section
                     deps_match = re.search(r'dependencies\s*=\s*\[(.*?)\]', content, re.DOTALL)
                     if deps_match:
                         deps_str = deps_match.group(1)
@@ -467,37 +466,32 @@ class WindowsPackageBuilder:
                 self.log("No dependencies found in pyproject.toml", "WARNING")
     
     def copy_project_files(self, target_dir: Path):
-        """Copy project files to build directory"""
+        """搬运整个应用的资产、核心逻辑与入口至交付的打包区中。"""
         self.log(f"Copying project files to {target_dir}...")
         
         exclude_patterns = self.config['build']['exclude_patterns']
         
         def should_exclude(path: Path) -> bool:
-            path_str = str(path.relative_to(self.project_root))
+            path_str = str(path.relative_to(self.project_root)).replace('\\', '/')
             for pattern in exclude_patterns:
                 if pattern.endswith('/*'):
-                    # Directory content exclusion - must match exact directory name or start with "dirname/"
                     dir_name = pattern[:-2]
                     if path_str == dir_name or path_str.startswith(f"{dir_name}/"):
                         return True
                 elif pattern.endswith('*'):
-                    # Wildcard pattern
                     if path_str.startswith(pattern[:-1]):
                         return True
                 elif '*' in pattern:
-                    # Glob pattern (simple check)
                     import fnmatch
                     if fnmatch.fnmatch(path_str, pattern):
                         return True
                 else:
-                    # Exact match or directory
                     if path_str == pattern or path_str.startswith(f"{pattern}/"):
                         return True
             return False
         
         target_dir.mkdir(parents=True, exist_ok=True)
         
-        # Copy files
         copied_count = 0
         for item in self.project_root.iterdir():
             if item.name in ['.git', 'packaging', 'dist', '.venv', 'venv']:
@@ -515,13 +509,12 @@ class WindowsPackageBuilder:
                 shutil.copytree(item, target_path, ignore=lambda d, names: [
                     n for n in names if should_exclude(Path(d) / n)
                 ])
-                # Count files in copied directory
                 copied_count += sum(1 for _ in target_path.rglob('*') if _.is_file())
         
         self.log(f"Copied {copied_count} files", "SUCCESS")
     
     def generate_launcher_scripts(self):
-        """Generate launcher scripts from templates"""
+        """解析并注入动态变量生成提供给用户的便捷 .bat 脚本"""
         self.log("Generating launcher scripts...")
         
         replacements = {
@@ -529,7 +522,6 @@ class WindowsPackageBuilder:
             '{BUILD_DATE}': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
         }
         
-        # Copy and process templates
         for template_file in self.templates_dir.glob('*'):
             if template_file.is_file():
                 target_file = self.build_dir / template_file.name
@@ -537,7 +529,6 @@ class WindowsPackageBuilder:
                 with open(template_file, 'r', encoding='utf-8') as f:
                     content = f.read()
                 
-                # Replace placeholders
                 for key, value in replacements.items():
                     content = content.replace(key, value)
                 
@@ -549,19 +540,19 @@ class WindowsPackageBuilder:
         self.log("Launcher scripts generated", "SUCCESS")
     
     def create_empty_directories(self):
-        """Create empty directories specified in config"""
+        """挂载需要在包内创建和保留的必须空目录项结构"""
         self.log("Creating empty directories...")
         
         for dir_name in self.config['build'].get('create_empty_dirs', []):
             dir_path = self.build_dir / dir_name
             dir_path.mkdir(parents=True, exist_ok=True)
-            # Create .gitkeep to preserve directory in git
+            # 植入保底空文件，防止 git 或其他压缩工具丢失结构
             (dir_path / '.gitkeep').touch()
         
         self.log("Empty directories created", "SUCCESS")
     
     def create_zip_package(self):
-        """Create final ZIP package"""
+        """把成品最终汇聚成高压缩比的便携式包裹 (Zip)"""
         if not self.config['build'].get('create_zip', True):
             return
         
@@ -585,7 +576,7 @@ class WindowsPackageBuilder:
                     arcname = file_path.relative_to(self.build_dir.parent)
                     zipf.write(file_path, arcname)
         
-        # Calculate file size and hash
+        # 计量生成的大小体积等签名供安全检查校验之用
         size_mb = zip_path.stat().st_size / (1024 * 1024)
         
         with open(zip_path, 'rb') as f:
@@ -595,19 +586,18 @@ class WindowsPackageBuilder:
         self.log(f"Size: {size_mb:.2f} MB")
         self.log(f"SHA256: {file_hash}")
         
-        # Write hash to file
         hash_file = zip_path.with_suffix('.zip.sha256')
-        with open(hash_file, 'w') as f:
+        with open(hash_file, 'w', encoding='utf-8') as f:
             f.write(f"{file_hash}  {zip_path.name}\n")
     
     def build(self):
-        """Main build process"""
+        """触发执行总入口，串联所有节点任务完成流水线编排工作。"""
         self.log("=" * 60, "HEADER")
         self.log(f"Building {self.package_name}", "HEADER")
         self.log("=" * 60, "HEADER")
         
         try:
-            # Clean build directory
+            # 清理历史重名残留脏污目录
             if self.build_dir.exists():
                 self.log(f"Cleaning existing build directory: {self.build_dir}")
                 shutil.rmtree(self.build_dir)
@@ -615,36 +605,28 @@ class WindowsPackageBuilder:
             self.build_dir.mkdir(parents=True, exist_ok=True)
             self.output_dir.mkdir(parents=True, exist_ok=True)
             
-            # Download dependencies
+            # 一系列编排执行...
             python_zip = self.download_python()
             ffmpeg_zip = self.download_ffmpeg()
             
-            # Extract Python
             python_dir = self.build_dir / "python" / "python311"
             self.extract_python(python_zip, python_dir)
             
-            # Extract FFmpeg
             ffmpeg_dir = self.build_dir / "tools" / "ffmpeg" / "bin"
             self.extract_ffmpeg(ffmpeg_zip, ffmpeg_dir)
             
-            # Prepare Python environment
             self.prepare_python_environment(python_dir)
             
-            # Install dependencies
             if self.config['build'].get('pre_install_deps', True):
                 self.install_dependencies(python_dir)
             
-            # Copy project files
             project_target = self.build_dir / "Pixelle-Video"
             self.copy_project_files(project_target)
             
-            # Generate launcher scripts
             self.generate_launcher_scripts()
             
-            # Create empty directories
             self.create_empty_directories()
             
-            # Create ZIP package
             self.create_zip_package()
             
             self.log("=" * 60, "HEADER")
@@ -688,4 +670,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

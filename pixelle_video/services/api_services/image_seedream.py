@@ -55,7 +55,7 @@ class SeedreamClient:
             base_url: ARK API 基础 URL
             timeout: HTTP请求超时时间（秒）
         """
-        self.api_key = api_key or os.getenv("ARK_API_KEY")
+        self.api_key = api_key or os.getenv("ARK_API_KEY") or "sk-dummy"
         self.base_url = base_url or "https://ark.cn-beijing.volces.com/api/v3"
         self.local_proxy = local_proxy
         self.timeout = timeout

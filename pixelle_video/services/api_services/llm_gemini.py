@@ -31,7 +31,7 @@ class Gemini:
         self.base_url = base_url or os.getenv("GOOGLE_GEMINI_BASE_URL", default_url)
         if self.base_url and not self.base_url.endswith("/v1"):
             self.base_url = self.base_url.rstrip("/") + "/v1"
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "")
+        self.api_key = api_key or os.getenv("GEMINI_API_KEY", "") or "sk-dummy"
         self.client = OpenAI(api_key=self.api_key, base_url=self.base_url)
         self.max_attempts = 10
         self.max_tokens = 8000

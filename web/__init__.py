@@ -13,6 +13,6 @@
 """
 Pixelle-Video Web UI Package
 
-A modular web interface for generating short videos from content.
+基于 Streamlit 的模块化 Web 前端界面包。
+用于从内容直接生成短视频的交互式界面。
 """
-

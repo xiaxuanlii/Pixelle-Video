@@ -11,7 +11,7 @@ class GPT:
     """
     def __init__(self, base_url="", api_key="", local_proxy=None, timeout=300):
         import httpx
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or "sk-dummy"
         self.timeout = timeout
         
         kwargs = {"api_key": self.api_key, "timeout": self.timeout}

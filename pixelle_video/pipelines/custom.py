@@ -13,10 +13,11 @@
 """
 Custom Video Generation Pipeline
 
-Template pipeline for creating your own custom video generation workflows.
-This serves as a reference implementation showing how to extend BasePipeline.
+自定义视频生成流水线模板模块。
+作为扩展 `BasePipeline` 创建自定义工作流的参考范例和脚手架。
 
-For real projects, copy this file and modify it according to your needs.
+在真实的二次开发项目中，建议直接复制此文件并根据您的专属业务逻辑进行修改，
+或者继承该类进行重写。
 """
 
 from datetime import datetime
@@ -38,63 +39,53 @@ from pixelle_video.models.storyboard import (
 
 class CustomPipeline(BasePipeline):
     """
-    Custom video generation pipeline template
+    自定义视频生成流水线模板类。
     
-    This is a template showing how to create your own pipeline with custom logic.
-    You can customize:
-    - Content processing logic
-    - Narration generation strategy
-    - Image prompt generation (conditional based on template)
-    - Frame composition
-    - Video assembly
+    此模板演示了如何基于基类从零编排您自己的流水线。
+    您可以自由定制:
+    - 内容生成逻辑（从何处获取脚本）
+    - 旁白的切分策略
+    - 图像提示词生成策略
+    - 画面的叠加排版
+    - 视频后期的混剪顺序
     
-    KEY OPTIMIZATION: Conditional Image Generation
+    核心优化: 动态环境探测
     -----------------------------------------------
-    This pipeline supports automatic detection of template image requirements.
-    If your template doesn't use {{image}}, the entire image generation pipeline
-    can be skipped, providing:
-      ⚡ Faster generation (no image API calls)
-      💰 Lower cost (no LLM calls for image prompts)
-      🚀 Reduced dependencies (no ComfyUI needed for text-only videos)
+    此模板演示了如何智能检测所选的 HTML 模板是否真的需要生成图片。
+    如果选用纯文本静态模板 (如 `simple.html`)，流水线将完全跳过耗时的 AI 绘图请求，
+    从而获得极速的生成体验和极低的 Token 成本。
     
-    Usage patterns:
-      1. Text-only videos: Use templates/1080x1920/simple.html
-      2. AI-generated images: Use templates with {{image}} placeholder
-      3. Custom logic: Modify template or override the detection logic in your subclass
-    
-    Example usage:
-        # 1. Create your own pipeline by copying this file
-        # 2. Modify the __call__ method with your custom logic
-        # 3. Register it in service.py or dynamically
+    使用示例:
+        # 1. 复制本文件创建新类，并修改内部的 __call__ 逻辑
+        # 2. 将新的 Pipeline 注册到核心服务的字典中
         
         from pixelle_video.pipelines.custom import CustomPipeline
         pixelle_video.pipelines["my_custom"] = CustomPipeline(pixelle_video)
         
-        # 4. Use it
+        # 3. 通过 API 调用触发新流水线
         result = await pixelle_video.generate_video(
-            text=your_content,
-            pipeline="my_custom",
-            # Your custom parameters here
+            text="输入脚本",
+            pipeline="my_custom"
         )
     """
     
     async def __call__(
         self,
         text: str,
-        # === Custom Parameters ===
-        # Add your own parameters here
+        # === Custom Parameters / 您的专属定制参数 ===
+        # 在这里增加您自己需要的业务参数
         custom_param_example: str = "default_value",
         
-        # === Standard Parameters (keep these for compatibility) ===
-        tts_inference_mode: Optional[str] = None,  # "local" or "comfyui"
-        voice_id: Optional[str] = None,  # Deprecated, use tts_voice
-        tts_voice: Optional[str] = None,  # Voice ID for local mode
+        # === Standard Parameters / 保持与框架协议对齐的标准参数 ===
+        tts_inference_mode: Optional[str] = None,  # "local" 或是 "comfyui"
+        voice_id: Optional[str] = None,  # 弃用的音色参数，建议使用 tts_voice
+        tts_voice: Optional[str] = None,  # Local 模式专用音色
         tts_workflow: Optional[str] = None,
         tts_speed: float = 1.2,
         ref_audio: Optional[str] = None,
         
         media_workflow: Optional[str] = None,
-        # Note: media_width and media_height are auto-determined from template
+        # 注意: media_width 和 media_height 会从模板中自动提取，不需要手动传
         
         frame_template: Optional[str] = None,
         video_fps: int = 30,
@@ -106,23 +97,9 @@ class CustomPipeline(BasePipeline):
         progress_callback: Optional[Callable[[ProgressEvent], None]] = None,
     ) -> VideoGenerationResult:
         """
-        Custom video generation workflow
+        自定义视频生成工作流主入口。
         
-        Customize this method to implement your own logic.
-        
-        Args:
-            text: Input text (customize meaning as needed)
-            custom_param_example: Your custom parameter
-            (other standard parameters...)
-        
-        Returns:
-            VideoGenerationResult
-        
-        Image Generation Logic:
-            - image_*.html templates → automatically generates images
-            - video_*.html templates → automatically generates videos
-            - static_*.html templates → skips media generation (faster, cheaper)
-            - To customize: Override the template type detection logic in your subclass
+        在这里实现属于您的核心编排逻辑。
         """
         logger.info("Starting CustomPipeline")
         logger.info(f"Input text length: {len(text)} chars")
@@ -174,7 +151,7 @@ class CustomPipeline(BasePipeline):
         # Priority: explicit param > config default > hardcoded default
         if frame_template is None:
             template_config = self.core.config.get("template", {})
-            frame_template = template_config.get("default_template", "1080x1920/default.html")
+            frame_template = template_config.get("default_template", "1080x1920/image_default.html")
         
         # ========== Step 0.5: Check template requirements ==========
         # Detect template type by filename prefix
@@ -200,7 +177,7 @@ class CustomPipeline(BasePipeline):
             logger.info(f"⚡ Static template - skipping media generation pipeline")
             logger.info(f"   💡 Benefits: Faster generation + Lower cost + No ComfyUI dependency")
         
-        # ========== Step 1: Process content (CUSTOMIZE THIS) ==========
+        # ========== Step 1: Process content (在这定制内容处理) ==========
         self._report_progress(progress_callback, "processing_content", 0.10)
         
         # Example: Generate title using LLM
@@ -224,7 +201,7 @@ class CustomPipeline(BasePipeline):
         
         logger.info(f"Generated {len(narrations)} narrations")
         
-        # ========== Step 2: Generate image prompts (CONDITIONAL - CUSTOMIZE THIS) ==========
+        # ========== Step 2: Generate image prompts (在这定制画面描述) ==========
         self._report_progress(progress_callback, "generating_image_prompts", 0.25)
         
         # IMPORTANT: Check if template is image type
@@ -256,7 +233,7 @@ class CustomPipeline(BasePipeline):
             logger.info(f"⚡ Skipped image prompt generation (template doesn't need images)")
             logger.info(f"   💡 Savings: {len(narrations)} LLM calls + {len(narrations)} image generations")
         
-        # ========== Step 3: Create storyboard ==========
+        # ========== Step 3: Create storyboard (组装数据结构) ==========
         config = StoryboardConfig(
             task_id=task_id,
             n_storyboard=len(narrations),
@@ -409,12 +386,7 @@ class CustomPipeline(BasePipeline):
         input_params: dict
     ):
         """
-        Persist task metadata and storyboard to filesystem
-        
-        Args:
-            storyboard: Complete storyboard
-            result: Video generation result
-            input_params: Input parameters used for generation
+        持久化落盘任务信息
         """
         try:
             task_id = storyboard.config.task_id
@@ -519,7 +491,7 @@ Example 2: AI-generated image video
 result = await pixelle_video.generate_video(
     text="Your content here",
     pipeline="my_custom",
-    frame_template="1080x1920/default.html"  # Template with {{image}}
+    frame_template="1080x1920/image_default.html"  # Template with {{image}}
 )
 # Will automatically generate images via LLM + ComfyUI
 
@@ -560,4 +532,3 @@ class QuickPipeline(BasePipeline):
 pixelle_video.pipelines["quick"] = QuickPipeline(pixelle_video)
 result = await pixelle_video.generate_video(text=content, pipeline="quick")
 """
-

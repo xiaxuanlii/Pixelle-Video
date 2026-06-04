@@ -12,6 +12,9 @@
 
 """
 Session state management for web UI
+
+Web UI 前端全局会话状态 (Session State) 管理模块。
+负责控制和初始化用户的语言偏好，以及全局核心实例 `PixelleVideoCore` 的挂载与缓存。
 """
 
 import streamlit as st
@@ -22,42 +25,50 @@ from web.utils.async_helpers import run_async
 
 
 def init_session_state():
-    """Initialize session state variables"""
+    """
+    初始化基本的 Streamlit 会话状态变量。
+    主要用于在用户首次进入页面时设定默认的语言标识。
+    """
     if "language" not in st.session_state:
-        # Use auto-detected system language
+        # 使用自动嗅探到的操作系统语言作为默认语言
         st.session_state.language = get_language()
 
 
 def init_i18n():
-    """Initialize internationalization"""
-    # Locales are already loaded and system language detected on import
-    # Get language from session state or use auto-detected system language
+    """
+    初始化国际化 (i18n) 翻译系统环境。
+    将用户的会话语言应用到后台的语言字典渲染引擎上。
+    """
     if "language" not in st.session_state:
-        st.session_state.language = get_language()  # Use auto-detected language
+        st.session_state.language = get_language()
     
-    # Set current language
+    # 强制刷新当前语言的翻译文本库
     set_language(st.session_state.language)
 
 
 def get_pixelle_video():
     """
-    Get initialized Pixelle-Video instance with proper caching and cleanup
+    获取全局唯一的 Pixelle-Video 核心服务实例。
     
-    Uses st.session_state to cache the instance per user session.
-    ComfyKit is lazily initialized and automatically recreated on config changes.
+    采用带缓存保护和智能热重载的单例提取机制。
+    如果发现底层配置文件中影响核心连接的项（如 ComfyUI 的连接 URL 或 API 密钥）发生了更改，
+    会主动触发并销毁旧的 websocket 会话，重新创建并挂载一个干净的核心引擎实例。
+    
+    Returns:
+        PixelleVideoCore: 初始化完毕的核心业务引擎对象。
     """
     from pixelle_video.service import PixelleVideoCore
     from pixelle_video.config import config_manager
     
-    # Compute config hash for change detection
+    # 计算当前关键配置的 Hash 值，用于比对判断是否需要热重载整个引擎
     import hashlib
     import json
     config_dict = config_manager.config.to_dict()
-    # Only track ComfyUI config for hash (other config changes don't need core recreation)
+    # 仅仅追踪 ComfyUI 的环境配置。其他的设置 (如 LLM 等) 是运行时读取的，不需要破坏重启长连接实例
     comfyui_config = config_dict.get("comfyui", {})
     config_hash = hashlib.md5(json.dumps(comfyui_config, sort_keys=True).encode()).hexdigest()
     
-    # Check if we need to create or recreate core instance
+    # 检测是否需要初次创建或因配置变更而重建
     need_recreate = False
     if 'pixelle_video' not in st.session_state:
         need_recreate = True
@@ -65,7 +76,7 @@ def get_pixelle_video():
     elif st.session_state.get('pixelle_video_config_hash') != config_hash:
         need_recreate = True
         logger.info("Configuration changed, recreating PixelleVideoCore instance")
-        # Cleanup old instance
+        # 优雅地清理关闭前一个实例中持有的协程或连接资源
         old_core = st.session_state.pixelle_video
         try:
             run_async(old_core.cleanup())
@@ -73,17 +84,17 @@ def get_pixelle_video():
             logger.warning(f"Failed to cleanup old PixelleVideoCore: {e}")
     
     if need_recreate:
-        # Create and initialize new instance
+        # 创建新的核心实例并触发异步初始化方法
         pixelle_video = PixelleVideoCore()
         run_async(pixelle_video.initialize())
         
-        # Cache in session state
+        # 将最新的实例与 Hash 锚点固化到会话中
         st.session_state.pixelle_video = pixelle_video
         st.session_state.pixelle_video_config_hash = config_hash
         logger.info("✅ PixelleVideoCore initialized and cached")
     else:
+        # 正常直接复用已有的引擎，速度极快
         pixelle_video = st.session_state.pixelle_video
         logger.debug("Reusing cached PixelleVideoCore instance")
     
     return pixelle_video
-

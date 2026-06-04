@@ -12,6 +12,8 @@
 
 """
 Media generation result models
+
+媒体生成结果数据模型模块。
 """
 
 from typing import Literal, Optional
@@ -20,42 +22,40 @@ from pydantic import BaseModel, Field
 
 class MediaResult(BaseModel):
     """
-    Media generation result from workflow execution
+    底层媒体工作流执行完毕后返回的统一结果模型。
     
-    Supports both image and video outputs from ComfyUI workflows.
-    The media_type indicates what kind of media was generated.
+    支持图像和视频两种输出形式（主要对接 ComfyKit 的 ExecuteResult）。
     
     Attributes:
-        media_type: Type of media generated ("image" or "video")
-        url: URL or path to the generated media
-        duration: Duration in seconds (only for video, None for image)
+        media_type: 实际生成的媒体类型 ("image" 或 "video")。
+        url: 媒体文件的可访问网络 URL 或物理存放路径。
+        duration: 仅当为视频时记录其播放时长（秒），如果是图片则为 None。
     
     Examples:
-        # Image result
+        # 图像生成结果
         MediaResult(media_type="image", url="http://example.com/image.png")
         
-        # Video result
+        # 视频生成结果
         MediaResult(media_type="video", url="http://example.com/video.mp4", duration=5.2)
     """
     
     media_type: Literal["image", "video"] = Field(
-        description="Type of generated media"
+        description="生成的媒体类型 (图像/视频)"
     )
     url: str = Field(
-        description="URL or path to the generated media file"
+        description="目标媒体文件的 URL 或本地路径"
     )
     duration: Optional[float] = Field(
         None,
-        description="Duration in seconds (only applicable for video)"
+        description="视频播放时长(秒)，仅针对视频输出有效"
     )
     
     @property
     def is_image(self) -> bool:
-        """Check if this is an image result"""
+        """快速判断是否为静态图片类型"""
         return self.media_type == "image"
     
     @property
     def is_video(self) -> bool:
-        """Check if this is a video result"""
+        """快速判断是否为动态视频类型"""
         return self.media_type == "video"
-

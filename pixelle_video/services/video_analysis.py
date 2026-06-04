@@ -13,7 +13,8 @@
 """
 Video Analysis Service - ComfyUI Workflow-based implementation
 
-Uses ComfyUI workflows to analyze video content and generate descriptions.
+基于 ComfyUI 工作流实现的视频内容分析服务。
+用于反推或提炼上传视频的文本描述。
 """
 
 from typing import Optional, Literal
@@ -27,27 +28,24 @@ from pixelle_video.services.comfy_base_service import ComfyBaseService
 
 class VideoAnalysisService(ComfyBaseService):
     """
-    Video analysis service - Workflow-based
+    视频分析服务 (基于工作流)。
     
-    Uses ComfyKit to execute video understanding workflows.
-    Returns detailed textual descriptions of video content.
+    使用底层的 ComfyKit 调度视频理解大模型 (如 Qwen-VL 等视频理解模型)。
+    返回对视频内容的详细文本描述。
     
-    Convention: workflows follow {source}/analyse_video.json pattern
-    - runninghub/analyse_video.json (default, cloud-based)
-    - selfhost/analyse_video.json (local ComfyUI, future)
+    规约约定: 自动扫描匹配 `{source}/analyse_video.json` 的工作流配置文件。
+    - runninghub/analyse_video.json (默认云端)
+    - selfhost/analyse_video.json (本地私有化节点)
     
-    Usage:
-        # Use default (runninghub cloud)
+    使用示例:
+        # 使用默认配置获取视频摘要
         description = await pixelle_video.video_analysis("path/to/video.mp4")
         
-        # Use local ComfyUI (future)
+        # 强制指定使用本地私有化的视觉模型进行分析
         description = await pixelle_video.video_analysis(
             "path/to/video.mp4",
             source="selfhost"
         )
-        
-        # List available workflows
-        workflows = pixelle_video.video_analysis.list_workflows()
     """
     
     WORKFLOW_PREFIX = "analyse_video"
@@ -55,116 +53,87 @@ class VideoAnalysisService(ComfyBaseService):
     
     def __init__(self, config: dict, core=None):
         """
-        Initialize video analysis service
+        初始化视频分析服务。
         
         Args:
-            config: Full application config dict
-            core: PixelleVideoCore instance (for accessing shared ComfyKit)
+            config: 全局配置字典。
+            core: PixelleVideoCore 实例引用（用于获取共享的 ComfyKit 会话对象）。
         """
         super().__init__(config, service_name="video_analysis", core=core)
     
     async def __call__(
         self,
         video_path: str,
-        # Workflow source selection
+        # 强制指定的工作流查找源
         source: Literal['runninghub', 'selfhost'] = 'runninghub',
         workflow: Optional[str] = None,
-        # ComfyUI connection (optional overrides)
+        # ComfyUI 连接信息覆盖
         comfyui_url: Optional[str] = None,
         runninghub_api_key: Optional[str] = None,
-        # Additional workflow parameters
+        # 额外参数
         **params
     ) -> str:
         """
-        Analyze a video using workflow
+        核心调用：触发针对指定视频的语义分析流。
         
         Args:
-            video_path: Path to the video file (local or URL)
-            source: Workflow source - 'runninghub' (cloud, default) or 'selfhost' (local ComfyUI)
-            workflow: Workflow filename (optional, overrides source-based resolution)
-            comfyui_url: ComfyUI URL (optional, overrides config)
-            runninghub_api_key: RunningHub API key (optional, overrides config)
-            **params: Additional workflow parameters
-        
+            video_path: 需要分析的源视频本地路径或网络 URL。
+            source: 策略来源（默认走云端 runninghub）。
+            workflow: 如果传入具体名字，将覆盖 source 的查找策略直接加载该文件。
+            **params: 透传给工作流节点的其他特定参数。
+            
         Returns:
-            str: Text description of the video content
-        
-        Examples:
-            # Simplest: use default (runninghub cloud)
-            description = await pixelle_video.video_analysis("temp/01_segment.mp4")
-            
-            # Use local ComfyUI (future)
-            description = await pixelle_video.video_analysis(
-                "temp/01_segment.mp4",
-                source="selfhost"
-            )
-            
-            # Use specific workflow (bypass source-based resolution)
-            description = await pixelle_video.video_analysis(
-                "temp/01_segment.mp4",
-                workflow="runninghub/custom_video_analysis.json"
-            )
+            str: 模型解析出的视频详细描述文本。
         """
         from pixelle_video.utils.workflow_util import resolve_workflow_path
         
-        # 1. Validate video path
+        # 1. 安全检验输入文件的合法性
         video_path_obj = Path(video_path)
         if not video_path_obj.exists():
             raise FileNotFoundError(f"Video file not found: {video_path}")
         
-        # 2. Resolve workflow path using convention
+        # 2. 如果没给，利用标准规约反查真实工作流 JSON 位置
         if workflow is None:
-            # Use standardized naming: {source}/analyse_video.json
             workflow = resolve_workflow_path("analyse_video", source)
             logger.info(f"Using {source} workflow: {workflow}")
         
-        # 3. Resolve workflow (returns structured info)
+        # 3. 将工作流文件解析为标准化字典模型
         workflow_info = self._resolve_workflow(workflow=workflow)
         
-        # 4. Build workflow parameters
+        # 4. 组装发给底层引擎的输入数据包
         workflow_params = {
-            "video": str(video_path)  # Pass video path to workflow
+            "video": str(video_path)  # 对应于工作流中的 Load Video 节点输入
         }
-        
-        # Add any additional parameters
         workflow_params.update(params)
-        
         logger.debug(f"Workflow parameters: {workflow_params}")
         
-        # 5. Execute workflow using shared ComfyKit instance from core
         try:
-            # Get shared ComfyKit instance (lazy initialization + config hot-reload)
             kit = await self.core._get_or_create_comfykit()
             
-            # Determine what to pass to ComfyKit based on source
+            # 分发调用逻辑 (云端直接透传 ID，本地使用上传路径)
             if workflow_info["source"] == "runninghub" and "workflow_id" in workflow_info:
-                # RunningHub: pass workflow_id
                 workflow_input = workflow_info["workflow_id"]
                 logger.info(f"Executing RunningHub workflow: {workflow_input}")
             else:
-                # Selfhost: pass file path
                 workflow_input = workflow_info["path"]
                 logger.info(f"Executing selfhost workflow: {workflow_input}")
             
             result = await kit.execute(workflow_input, workflow_params)
             
-            # 6. Extract description from result
+            # 6. 后置处理与各种可能的回包格式适配提取
             if result.status != "completed":
                 error_msg = result.msg or "Unknown error"
                 logger.error(f"Video analysis failed: {error_msg}")
                 raise Exception(f"Video analysis failed: {error_msg}")
             
-            # Extract text description from result
-            # Video understanding workflow returns text in result.texts array
             description = None
             
-            # Format 1: Direct texts array (most common for video understanding)
+            # 格式 1: 标准输出中的 texts 文本数组直接携带
             if result.texts and len(result.texts) > 0:
                 description = result.texts[0]
                 logger.debug(f"Found description in result.texts: {description[:100]}...")
             
-            # Format 2: Selfhost outputs (direct text in outputs)
-            # Format: {'6': {'text': ['description text']}}
+            # 格式 2: Selfhost 原始的 Node 输出对象嵌套
             elif result.outputs:
                 for node_id, node_output in result.outputs.items():
                     if 'text' in node_output:
@@ -174,15 +143,12 @@ class VideoAnalysisService(ComfyBaseService):
                             logger.debug(f"Found description in outputs.text: {description[:100]}...")
                             break
             
-            # Format 3: RunningHub raw_data (text file URL)
-            # Format: {'raw_data': [{'fileUrl': 'https://...txt', 'fileType': 'txt', ...}]}
+            # 格式 3: RunningHub 云端某些模型为了防止长文本溢出，可能返回带有 txt 外链的结构
             if not description and result.outputs and 'raw_data' in result.outputs:
                 raw_data = result.outputs['raw_data']
                 if raw_data and len(raw_data) > 0:
-                    # Find text file entry
                     for item in raw_data:
                         if item.get('fileType') == 'txt' and 'fileUrl' in item:
-                            # Download text content from URL
                             import aiohttp
                             async with aiohttp.ClientSession() as session:
                                 async with session.get(item['fileUrl']) as resp:
@@ -197,7 +163,6 @@ class VideoAnalysisService(ComfyBaseService):
                 raise Exception("No description generated from video analysis")
             
             logger.info(f"✅ Video analyzed: {description[:100]}...")
-            
             return description
         
         except Exception as e:

@@ -13,7 +13,9 @@
 """
 Resource discovery endpoints
 
-Provides endpoints to discover available workflows, templates, and BGM.
+此模块定义了资源发现 API 路由端点。
+主要为前端提供各种可用资源列表（如：可用工作流、可用排版模板、可用背景音乐），
+以便前端动态渲染下拉列表和选项框。
 """
 
 from pathlib import Path
@@ -32,17 +34,19 @@ from api.schemas.resources import (
 from pixelle_video.utils.os_util import list_resource_files, get_root_path, get_data_path
 from pixelle_video.utils.template_util import get_all_templates_with_info
 
+# 创建带有 "/resources" 前缀的 APIRouter，并在 Swagger 中归类为 "Resources"
 router = APIRouter(prefix="/resources", tags=["Resources"])
 
 
 @router.get("/workflows/tts", response_model=WorkflowListResponse)
 async def list_tts_workflows(pixelle_video: PixelleVideoDep):
     """
-    List available TTS workflows
+    获取所有可用的 TTS（文本转语音）工作流。
     
-    Returns list of TTS workflows from both RunningHub and self-hosted sources.
+    合并返回 RunningHub 和本地托管（self-hosted）来源中的所有 TTS 配置文件。
+    仅返回文件名以 "tts_" 开头的工作流。
     
-    Example response:
+    返回示例:
     ```json
     {
         "workflows": [
@@ -59,10 +63,10 @@ async def list_tts_workflows(pixelle_video: PixelleVideoDep):
     ```
     """
     try:
-        # Get all workflows from TTS service
+        # Get all workflows from TTS service / 从底层 TTS 服务查询所有被加载的工作流
         all_workflows = pixelle_video.tts.list_workflows()
         
-        # Filter to TTS workflows only (filename starts with "tts_")
+        # Filter to TTS workflows only (filename starts with "tts_") / 过滤出以 tts_ 开头的文件
         tts_workflows = [
             WorkflowInfo(**wf) 
             for wf in all_workflows 
@@ -79,11 +83,11 @@ async def list_tts_workflows(pixelle_video: PixelleVideoDep):
 @router.get("/workflows/media", response_model=WorkflowListResponse)
 async def list_media_workflows(pixelle_video: PixelleVideoDep):
     """
-    List available media workflows (both image and video)
+    获取所有可用的媒体（图像和视频）生成工作流。
     
-    Returns list of all media workflows from both RunningHub and self-hosted sources.
+    返回系统中所有负责产生画面的配置流，供用户在高级配置中选择特定的生图或生视频引擎策略。
     
-    Example response:
+    返回示例:
     ```json
     {
         "workflows": [
@@ -108,7 +112,7 @@ async def list_media_workflows(pixelle_video: PixelleVideoDep):
     ```
     """
     try:
-        # Get all workflows from media service (includes both image and video)
+        # Get all workflows from media service (includes both image and video) / 从媒体服务获取所有流
         all_workflows = pixelle_video.media.list_workflows()
         
         media_workflows = [WorkflowInfo(**wf) for wf in all_workflows]
@@ -120,13 +124,13 @@ async def list_media_workflows(pixelle_video: PixelleVideoDep):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# Keep old endpoint for backward compatibility
+# Keep old endpoint for backward compatibility / 保留旧的独立端点，以防破坏早期版本客户端
 @router.get("/workflows/image", response_model=WorkflowListResponse)
 async def list_image_workflows(pixelle_video: PixelleVideoDep):
     """
-    List available image workflows (deprecated, use /workflows/media instead)
+    获取所有可用的生图工作流。（已弃用，建议改用 `/workflows/media`）
     
-    This endpoint is kept for backward compatibility but will filter to image_ workflows only.
+    此接口目前主要用于向后兼容，且内部通过过滤仅返回文件名以 "image_" 开头的工作流。
     """
     try:
         all_workflows = pixelle_video.media.list_workflows()
@@ -148,34 +152,34 @@ async def list_image_workflows(pixelle_video: PixelleVideoDep):
 @router.get("/templates", response_model=TemplateListResponse)
 async def list_templates():
     """
-    List available video templates
+    获取所有可用的 HTML 视频排版模板。
     
-    Returns list of HTML templates grouped by size (portrait, landscape, square).
-    Templates are merged from both default (templates/) and custom (data/templates/) directories.
+    将自动扫描并合并系统默认目录（`templates/`）和用户自定义数据目录（`data/templates/`），
+    并提取模板内置的 meta 标签来解析尺寸和方向。
     
-    Example response:
+    返回示例:
     ```json
     {
         "templates": [
             {
-                "name": "default.html",
-                "display_name": "default.html",
+                "name": "image_default.html",
+                "display_name": "image_default.html",
                 "size": "1080x1920",
                 "width": 1080,
                 "height": 1920,
                 "orientation": "portrait",
-                "path": "templates/1080x1920/default.html",
-                "key": "1080x1920/default.html"
+                "path": "templates/1080x1920/image_default.html",
+                "key": "1080x1920/image_default.html"
             }
         ]
     }
     ```
     """
     try:
-        # Get all templates with info
+        # Get all templates with info / 通过辅助类自动抓取和解析 HTML 模板信息
         all_templates = get_all_templates_with_info()
         
-        # Convert to API response format
+        # Convert to API response format / 格式化为 API 返回结构
         templates = []
         for t in all_templates:
             templates.append(TemplateInfo(
@@ -199,14 +203,14 @@ async def list_templates():
 @router.get("/bgm", response_model=BGMListResponse)
 async def list_bgm():
     """
-    List available background music files
+    获取所有可用的背景音乐文件列表。
     
-    Returns list of BGM files merged from both default (bgm/) and custom (data/bgm/) directories.
-    Custom files take precedence over default files with the same name.
+    扫描合并系统预置目录（`bgm/`）和用户自定义目录（`data/bgm/`）。
+    如果存在同名文件，自定义目录中的文件优先级更高。
     
-    Supported formats: mp3, wav, flac, m4a, aac, ogg
+    支持格式: mp3, wav, flac, m4a, aac, ogg
     
-    Example response:
+    返回示例:
     ```json
     {
         "bgm_files": [
@@ -225,13 +229,13 @@ async def list_bgm():
     ```
     """
     try:
-        # Supported audio extensions
+        # Supported audio extensions / 支持扫描的音频扩展名白名单
         audio_extensions = ('.mp3', '.wav', '.flac', '.m4a', '.aac', '.ogg')
         
-        # Collect BGM files from both locations
+        # Collect BGM files from both locations / 用于合并两个目录结果并去重的字典
         bgm_files_dict = {}  # {filename: {"path": str, "source": str}}
         
-        # Scan default bgm/ directory
+        # Scan default bgm/ directory / 扫描系统自带默认目录
         default_bgm_dir = Path(get_root_path("bgm"))
         if default_bgm_dir.exists() and default_bgm_dir.is_dir():
             for item in default_bgm_dir.iterdir():
@@ -241,7 +245,7 @@ async def list_bgm():
                         "source": "default"
                     }
         
-        # Scan custom data/bgm/ directory (overrides default)
+        # Scan custom data/bgm/ directory (overrides default) / 扫描自定义挂载目录（存在同名则覆盖）
         custom_bgm_dir = Path(get_data_path("bgm"))
         if custom_bgm_dir.exists() and custom_bgm_dir.is_dir():
             for item in custom_bgm_dir.iterdir():
@@ -251,7 +255,7 @@ async def list_bgm():
                         "source": "custom"
                     }
         
-        # Convert to response format
+        # Convert to response format / 对合并后的字典排序并转为模型列表
         bgm_files = [
             BGMInfo(
                 name=name,

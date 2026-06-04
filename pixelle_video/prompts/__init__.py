@@ -13,15 +13,16 @@
 """
 Prompts package
 
-Centralized prompt management for all LLM interactions.
+系统提示词大礼包。
+集中管理、维护并对外暴露所有与各类大模型 (LLM) 进行深度交互时所需的高质量模板与约束词。
 """
 
-# Narration prompts
+# 剧本与旁白生成的智能助手提示词
 from pixelle_video.prompts.topic_narration import build_topic_narration_prompt
 from pixelle_video.prompts.content_narration import build_content_narration_prompt
 from pixelle_video.prompts.title_generation import build_title_generation_prompt
 
-# Image prompts
+# 视觉画面构建的智能助手提示词
 from pixelle_video.prompts.image_generation import (
     build_image_prompt_prompt,
     IMAGE_STYLE_PRESETS,

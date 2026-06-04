@@ -13,7 +13,7 @@
 """
 Task Manager
 
-In-memory task management for video generation jobs.
+此模块提供基于内存的任务管理器，用于异步处理和追踪视频生成等耗时任务。
 """
 
 import asyncio
@@ -28,23 +28,31 @@ from api.config import api_config
 
 class TaskManager:
     """
-    Task manager for handling async video generation tasks
+    异步视频生成任务的任务管理器。
     
-    Features:
-    - In-memory storage (can be replaced with Redis later)
-    - Task lifecycle management
-    - Progress tracking
-    - Auto cleanup of old tasks
+    主要特性：
+    - 基于内存的存储（未来可扩展为 Redis 或数据库存储以支持分布式）。
+    - 任务生命周期管理（创建、运行、完成、失败、取消）。
+    - 任务进度追踪（通过 update_progress 更新）。
+    - 自动清理过期任务（定期清除已完成或失败的旧任务以释放内存）。
     """
     
     def __init__(self):
+        # 存储任务元数据信息，键为 task_id
         self._tasks: Dict[str, Task] = {}
+        # 存储 asyncio.Task 对象，用于控制任务执行和取消
         self._task_futures: Dict[str, asyncio.Task] = {}
+        # 执行自动清理循环的后台任务对象
         self._cleanup_task: Optional[asyncio.Task] = None
+        # 标记管理器是否正在运行
         self._running = False
     
     async def start(self):
-        """Start task manager and cleanup scheduler"""
+        """
+        启动任务管理器并调度清理循环。
+        
+        此方法通常在 FastAPI 的启动事件中调用。
+        """
         if self._running:
             logger.warning("Task manager already running")
             return
@@ -54,10 +62,14 @@ class TaskManager:
         logger.info("✅ Task manager started")
     
     async def stop(self):
-        """Stop task manager and cancel all tasks"""
+        """
+        停止任务管理器并取消所有正在运行的任务。
+        
+        此方法通常在 FastAPI 的关闭事件中调用，以确保资源的优雅释放。
+        """
         self._running = False
         
-        # Cancel cleanup task
+        # 取消清理任务
         if self._cleanup_task:
             self._cleanup_task.cancel()
             try:
@@ -65,12 +77,13 @@ class TaskManager:
             except asyncio.CancelledError:
                 pass
         
-        # Cancel all running tasks
+        # 取消所有正在运行的业务任务
         for task_id, future in self._task_futures.items():
             if not future.done():
                 future.cancel()
                 logger.info(f"Cancelled task: {task_id}")
         
+        # 清空内存数据
         self._tasks.clear()
         self._task_futures.clear()
         logger.info("✅ Task manager stopped")
@@ -81,14 +94,16 @@ class TaskManager:
         request_params: Optional[dict] = None
     ) -> Task:
         """
-        Create a new task
+        创建一个新的后台任务记录。
+        
+        生成唯一的 task_id，并将初始状态设置为 PENDING。
         
         Args:
-            task_type: Type of task
-            request_params: Original request parameters
+            task_type: 任务的类型（例如视频生成、内容生成等）。
+            request_params: 触发此任务的原始请求参数字典，方便后续查询。
             
         Returns:
-            Created task
+            Task: 创建的 Task 数据模型对象。
         """
         task_id = str(uuid.uuid4())
         task = Task(
@@ -110,47 +125,59 @@ class TaskManager:
         **kwargs
     ):
         """
-        Execute task asynchronously
+        异步执行指定的任务。
+        
+        将状态更新为 RUNNING 并开始执行传入的协程函数。执行完成后，
+        根据结果将状态更新为 COMPLETED 或 FAILED，并记录执行时间及结果/错误信息。
         
         Args:
-            task_id: Task ID
-            coro_func: Async function to execute
-            *args: Positional arguments
-            **kwargs: Keyword arguments
+            task_id: 之前通过 `create_task` 创建的任务 ID。
+            coro_func: 实际执行业务逻辑的异步协程函数。
+            *args: 传递给协程函数的位置参数。
+            **kwargs: 传递给协程函数的关键字参数。
         """
         task = self._tasks.get(task_id)
         if not task:
             logger.error(f"Task {task_id} not found")
             return
         
-        # Create async task
+        # 定义内部异步包装函数
         async def _execute():
             try:
                 task.status = TaskStatus.RUNNING
                 task.started_at = datetime.now()
                 logger.info(f"Task {task_id} started")
                 
-                # Execute the actual work
+                # 实际执行业务逻辑
                 result = await coro_func(*args, **kwargs)
                 
-                # Update task with result
+                # 执行成功，更新任务结果
                 task.status = TaskStatus.COMPLETED
                 task.result = result
                 task.completed_at = datetime.now()
                 logger.info(f"Task {task_id} completed")
                 
             except Exception as e:
+                # 执行抛出异常，记录错误信息
                 task.status = TaskStatus.FAILED
                 task.error = str(e)
                 task.completed_at = datetime.now()
                 logger.error(f"Task {task_id} failed: {e}")
         
-        # Start execution
+        # 将内部函数放入 asyncio 执行队列中
         future = asyncio.create_task(_execute())
         self._task_futures[task_id] = future
     
     def get_task(self, task_id: str) -> Optional[Task]:
-        """Get task by ID"""
+        """
+        通过任务 ID 获取任务详情。
+        
+        Args:
+            task_id: 任务的唯一标识。
+            
+        Returns:
+            Task: 如果找到任务，则返回 Task 对象，否则返回 None。
+        """
         return self._tasks.get(task_id)
     
     def list_tasks(
@@ -159,21 +186,23 @@ class TaskManager:
         limit: int = 100
     ) -> List[Task]:
         """
-        List tasks with optional filtering
+        获取任务列表，支持状态过滤和数量限制。
+        
+        返回的任务列表会按照创建时间（created_at）降序排序（最新的排在前面）。
         
         Args:
-            status: Filter by status
-            limit: Maximum number of tasks to return
+            status: （可选）仅返回指定状态的任务。
+            limit: 返回的最大任务数量，默认为 100。
             
         Returns:
-            List of tasks
+            List[Task]: 符合条件的任务列表。
         """
         tasks = list(self._tasks.values())
         
         if status:
             tasks = [t for t in tasks if t.status == status]
         
-        # Sort by created_at descending
+        # 按创建时间降序排序
         tasks.sort(key=lambda t: t.created_at, reverse=True)
         
         return tasks[:limit]
@@ -186,18 +215,19 @@ class TaskManager:
         message: str = ""
     ):
         """
-        Update task progress
+        更新任务的执行进度。
         
         Args:
-            task_id: Task ID
-            current: Current progress
-            total: Total steps
-            message: Progress message
+            task_id: 任务的唯一标识。
+            current: 当前完成的步数/数量。
+            total: 总步数/数量。
+            message: 当前进度的简要描述信息（如"正在生成图像..."）。
         """
         task = self._tasks.get(task_id)
         if not task:
             return
         
+        # 计算百分比
         percentage = (current / total * 100) if total > 0 else 0
         task.progress = TaskProgress(
             current=current,
@@ -208,35 +238,41 @@ class TaskManager:
     
     def cancel_task(self, task_id: str) -> bool:
         """
-        Cancel a running task
+        取消一个正在运行的任务。
+        
+        向底层 asyncio.Task 发送取消信号，并将任务状态变更为 CANCELLED。
         
         Args:
-            task_id: Task ID
+            task_id: 任务的唯一标识。
             
         Returns:
-            True if cancelled, False otherwise
+            bool: 如果成功取消则返回 True，否则（如任务不存在）返回 False。
         """
         task = self._tasks.get(task_id)
         if not task:
             return False
         
-        # Do not cancel already-terminal tasks
+        # Do not cancel already-terminal tasks / 不要取消已终止的任务
         if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
             return False
 
-        # Cancel future if running
+        # Cancel future if running / 如果任务还在运行，取消 future
         future = self._task_futures.get(task_id)
         if future and not future.done():
             future.cancel()
         
-        # Update task status
+        # 更新任务状态
         task.status = TaskStatus.CANCELLED
         task.completed_at = datetime.now()
         logger.info(f"Cancelled task {task_id}")
         return True
     
     async def _cleanup_loop(self):
-        """Periodically clean up old completed tasks"""
+        """
+        后台循环协程，用于定期清理旧的、已完成的任务记录。
+        
+        清理周期由 `api_config.task_cleanup_interval` 决定。
+        """
         while self._running:
             try:
                 await asyncio.sleep(api_config.task_cleanup_interval)
@@ -247,15 +283,19 @@ class TaskManager:
                 logger.error(f"Error in cleanup loop: {e}")
     
     def _cleanup_old_tasks(self):
-        """Remove old completed/failed tasks"""
+        """
+        执行实际的清理逻辑：移除超出保留时间（task_retention_time）的非活跃任务。
+        """
         cutoff_time = datetime.now() - timedelta(seconds=api_config.task_retention_time)
         
         tasks_to_remove = []
         for task_id, task in self._tasks.items():
+            # 仅清理已完成、失败或被取消的任务
             if task.status in [TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED]:
                 if task.completed_at and task.completed_at < cutoff_time:
                     tasks_to_remove.append(task_id)
         
+        # 从字典中删除数据
         for task_id in tasks_to_remove:
             del self._tasks[task_id]
             if task_id in self._task_futures:
@@ -265,6 +305,6 @@ class TaskManager:
             logger.info(f"Cleaned up {len(tasks_to_remove)} old tasks")
 
 
-# Global task manager instance
+# Global task manager instance / 全局任务管理器实例
 task_manager = TaskManager()
 

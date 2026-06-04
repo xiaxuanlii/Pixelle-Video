@@ -31,7 +31,7 @@ class GPTVLClient:
         :param timeout: 超时时间
         """
         # 优先使用传入的 api_key，否则从环境变量读取
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or "sk-dummy"
         self.timeout = timeout
         
         kwargs = {"api_key": self.api_key, "timeout": self.timeout}

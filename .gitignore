@@ -62,6 +62,7 @@ test_*.py
 temp/
 tmp/
 .cache/
+uv.lock
 
 # MkDocs build output
 site/

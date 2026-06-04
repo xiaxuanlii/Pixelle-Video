@@ -13,5 +13,6 @@
 """
 Pixelle-Video Utilities
 
-Utility functions and helpers.
+工具函数集合包。
+包含各种纯函数和无状态辅助方法，如 OS 文件路径操作、模板解析、提示词构建等。
 """

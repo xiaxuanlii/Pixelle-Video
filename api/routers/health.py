@@ -12,23 +12,31 @@
 
 """
 Health check and system info endpoints
+
+此模块定义了服务的健康检查（Health check）与系统信息路由端点。
+主要用于负载均衡器、容器编排工具（如 Kubernetes）或监控系统来检测服务是否存活。
 """
 
 from fastapi import APIRouter
 from pydantic import BaseModel
 
+# 创建 APIRouter 实例，并在 Swagger 文档中将其归类为 "Health" 标签
 router = APIRouter(tags=["Health"])
 
 
 class HealthResponse(BaseModel):
-    """Health check response"""
-    status: str = "healthy"
-    version: str = "0.1.0"
-    service: str = "Pixelle-Video API"
+    """
+    健康检查的响应数据模型。
+    """
+    status: str = "healthy"          # 当前服务状态标识
+    version: str = "0.1.0"           # 服务的当前版本号
+    service: str = "Pixelle-Video API" # 服务的名称标识
 
 
 class CapabilitiesResponse(BaseModel):
-    """Capabilities response"""
+    """
+    系统能力响应数据模型（预留扩展用，如返回是否支持 GPU 加速等信息）。
+    """
     success: bool = True
     capabilities: dict
 
@@ -36,9 +44,13 @@ class CapabilitiesResponse(BaseModel):
 @router.get("/health", response_model=HealthResponse)
 async def health_check():
     """
-    Health check endpoint
+    健康检查端点。
     
-    Returns service status and version information.
+    返回服务的存活状态及版本信息。如果服务崩溃或由于资源耗尽无响应，
+    监控平台将无法收到 "healthy" 的反馈。
+    
+    Returns:
+        HealthResponse: 包含状态、版本和服务名称的对象。
     """
     return HealthResponse()
 
@@ -46,9 +58,12 @@ async def health_check():
 @router.get("/version", response_model=HealthResponse)
 async def get_version():
     """
-    Get API version
+    获取 API 版本端点。
     
-    Returns version information.
+    功能与 /health 类似，返回当前运行的服务版本信息。
+    
+    Returns:
+        HealthResponse: 包含状态、版本和服务名称的对象。
     """
     return HealthResponse()
 

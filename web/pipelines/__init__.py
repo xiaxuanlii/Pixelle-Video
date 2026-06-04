@@ -11,28 +11,18 @@
 # limitations under the License.
 
 """
-Pipeline UI Package
+Web UI pipelines package
 
-Exports registry functions and automatically registers available pipelines.
+Web UI 流水线视图层集合包。
+注册所有受支持的视频生成交互入口。
 """
 
-from web.pipelines.base import (
-    PipelineUI,
-    register_pipeline_ui,
-    get_pipeline_ui,
-    get_all_pipeline_uis
-)
-
-# Import all pipeline UI modules to ensure they register themselves
-from web.pipelines import standard
-from web.pipelines import asset_based
-from web.pipelines import digital_human
-from web.pipelines import i2v
-from web.pipelines import action_transfer
+from web.pipelines.base import PipelineUI, get_pipeline_ui, get_all_pipeline_uis
+from web.pipelines.standard import StandardPipelineUI
 
 __all__ = [
     "PipelineUI",
-    "register_pipeline_ui",
     "get_pipeline_ui",
-    "get_all_pipeline_uis"
+    "get_all_pipeline_uis",
+    "StandardPipelineUI"
 ]

@@ -12,6 +12,10 @@
 
 """
 Async helper functions for web UI
+
+Web 前端异步辅助工具。
+因为 Streamlit 本身是同步阻塞执行的框架，但在底层我们采用了高性能的 asyncio 异步开发，
+所以在界面侧需要提供一些桥接辅助方法以在同步流程中安全运行异步函数。
 """
 
 import asyncio
@@ -23,7 +27,18 @@ from loguru import logger
 
 
 def run_async(coro):
-    """Run async coroutine in sync context"""
+    """
+    Run async coroutine in sync context.
+    在同步上下文中阻塞运行一个异步协程直到返回结果。
+
+    主要用于在 Streamlit 的按钮点击回调或页面加载流中调用后端异步引擎的方法。
+
+    Args:
+        coro: 等待执行的异步协程对象。
+
+    Returns:
+        异步函数的返回结果。
+    """
     if sys.platform == "win32":
         # Streamlit/Tornado may switch the global asyncio policy to
         # WindowsSelectorEventLoopPolicy, which breaks subprocess-based
@@ -44,10 +59,15 @@ def run_async(coro):
     return asyncio.run(coro)
 
 
-def get_project_version():
-    """Get project version from pyproject.toml"""
+def get_project_version() -> str:
+    """
+    动态解析项目的 `pyproject.toml` 读取当前最新的软件版本号。
+    
+    Returns:
+        str: 诸如 "0.1.0" 的版本字符串，读取失败时返回 "Unknown"。
+    """
     try:
-        # Get project root (web parent directory)
+        # 解析项目根目录路径
         web_dir = Path(__file__).resolve().parent.parent
         project_root = web_dir.parent
         pyproject_path = project_root / "pyproject.toml"
@@ -59,4 +79,3 @@ def get_project_version():
     except Exception as e:
         logger.warning(f"Failed to read version from pyproject.toml: {e}")
     return "Unknown"
-

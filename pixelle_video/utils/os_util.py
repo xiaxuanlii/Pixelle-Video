@@ -13,8 +13,9 @@
 """
 OS utilities for file and path management
 
-Provides utilities for managing paths and files in Pixelle-Video.
-Inspired by Pixelle-MCP's os_util.py.
+操作系统及文件路径管理工具模块。
+为系统提供标准化、安全的目录解析和文件管理服务。
+支持覆盖机制（如：优先从用户的 data/ 目录加载自定义素材，再降级到系统预置库）。
 """
 
 import os
@@ -26,30 +27,29 @@ from typing import Optional, Tuple, Literal
 
 def get_pixelle_video_root_path() -> str:
     """
-    Get Pixelle-Video root path
+    获取 Pixelle-Video 的项目根目录路径。
     
-    Uses PIXELLE_VIDEO_ROOT environment variable to determine project root.
-    This ensures reliable path resolution in both development and packaged environments.
+    优先检查 `PIXELLE_VIDEO_ROOT` 环境变量。这确保了无论是通过源码运行
+    还是被打包安装后执行，都能准确找到资源和配置文件所在的工作区。
     
     Returns:
-        Project root path as string
+        str: 项目的绝对根路径。
     """
     # Check environment variable (required for reliable operation)
     env_root = os.environ.get("PIXELLE_VIDEO_ROOT")
     if env_root and Path(env_root).exists():
         return str(Path(env_root).resolve())
     
-    # Fallback to current working directory if environment variable not set
-    # (for development environments where env var might not be set)
+    # 如果环境变量未设置，则降级使用当前执行目录 (CWD)
     return str(Path.cwd())
 
 
 def ensure_pixelle_video_root_path() -> str:
     """
-    Ensure Pixelle-Video root path exists and return the path
+    确保 Pixelle-Video 根路径及其必须的 output 目录存在。
     
     Returns:
-        Root path as string
+        str: 根路径字符串。
     """
     root_path = get_pixelle_video_root_path()
     root_path_obj = Path(root_path)
@@ -61,17 +61,13 @@ def ensure_pixelle_video_root_path() -> str:
 
 def get_root_path(*paths: str) -> str:
     """
-    Get path relative to Pixelle-Video root path
+    基于项目根目录拼接并获取绝对路径。
     
     Args:
-        *paths: Path components to join
+        *paths: 路径子组件。
     
     Returns:
-        Absolute path as string
-    
-    Example:
-        get_root_path("temp", "audio.mp3")
-        # Returns: "/path/to/project/temp/audio.mp3"
+        str: 拼接后的绝对路径。
     """
     root_path = ensure_pixelle_video_root_path()
     if paths:
@@ -81,19 +77,13 @@ def get_root_path(*paths: str) -> str:
 
 def get_temp_path(*paths: str) -> str:
     """
-    Get path relative to Pixelle-Video temp folder
-    
-    Ensures temp directory exists before returning path.
+    获取 temp 临时文件夹下的路径，并确保该目录存在。
     
     Args:
-        *paths: Path components to join
+        *paths: 路径子组件。
     
     Returns:
-        Absolute path to temp directory or file
-    
-    Example:
-        get_temp_path("audio.mp3")
-        # Returns: "/path/to/project/temp/audio.mp3"
+        str: 临时目录或文件的绝对路径。
     """
     temp_path = get_root_path("temp")
     
@@ -107,19 +97,14 @@ def get_temp_path(*paths: str) -> str:
 
 def get_data_path(*paths: str) -> str:
     """
-    Get path relative to Pixelle-Video data folder
+    获取 data 用户数据文件夹下的路径，并确保该目录存在。
+    用于挂载 Docker 数据卷存放用户的自定义资源。
 
-    Ensures data directory exists before returning path.
-    
     Args:
-        *paths: Path components to join
+        *paths: 路径子组件。
     
     Returns:
-        Absolute path to data directory or file
-    
-    Example:
-        get_data_path("videos", "output.mp4")
-        # Returns: "/path/to/project/data/videos/output.mp4"
+        str: 数据目录或文件的绝对路径。
     """
     data_path = get_root_path("data")
 
@@ -133,19 +118,13 @@ def get_data_path(*paths: str) -> str:
 
 def get_output_path(*paths: str) -> str:
     """
-    Get path relative to Pixelle-Video output folder
+    获取 output 生成结果文件夹下的路径，并确保该目录存在。
 
-    Ensures output directory exists before returning path.
-    
     Args:
-        *paths: Path components to join
+        *paths: 路径子组件。
     
     Returns:
-        Absolute path to output directory or file
-    
-    Example:
-        get_output_path("video.mp4")
-        # Returns: "/path/to/project/output/video.mp4"
+        str: 输出目录或文件的绝对路径。
     """
     output_path = get_root_path("output")
 
@@ -159,19 +138,14 @@ def get_output_path(*paths: str) -> str:
 
 def save_bytes_to_file(data: bytes, file_path: str) -> str:
     """
-    Save bytes data to file
-    
-    Creates parent directories if they don't exist.
+    将二进制字节流保存为物理文件，并自动创建缺失的父级目录。
     
     Args:
-        data: Binary data to save
-        file_path: Target file path
+        data: 二进制数据。
+        file_path: 目标保存路径。
     
     Returns:
-        Absolute path of saved file
-    
-    Example:
-        save_bytes_to_file(audio_data, get_temp_path("audio.mp3"))
+        str: 保存成功的文件的绝对路径。
     """
     # Ensure parent directory exists
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
@@ -185,62 +159,55 @@ def save_bytes_to_file(data: bytes, file_path: str) -> str:
 
 def ensure_dir(path: str) -> str:
     """
-    Ensure directory exists, create if not
+    确保指定目录存在，不存在则递归创建。
     
     Args:
-        path: Directory path
+        path: 目标目录路径。
     
     Returns:
-        Absolute path of directory
+        str: 该目录的绝对路径。
     """
     os.makedirs(path, exist_ok=True)
     return os.path.abspath(path)
 
 
-# ========== Task Directory Management ==========
+# ========== Task Directory Management / 任务目录管理 ==========
 
 def create_task_id() -> str:
     """
-    Create unique task ID with timestamp + random suffix
+    生成一个全局唯一的任务 ID (时间戳 + 随机后缀)。
     
-    Format: {timestamp}_{random_hex}
-    Example: "20251028_143052_ab3d"
-    
-    Collision probability: < 0.0001% (65536 combinations per second)
+    格式: {YYYYMMDD}_{HHMMSS}_{random_hex}
+    示例: "20251028_143052_ab3d"
     
     Returns:
-        Task ID string
+        str: 生成的任务 ID。
     """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-    random_suffix = f"{random.randint(0, 0xFFFF):04x}"  # 4-digit hex (0000-ffff)
+    random_suffix = f"{random.randint(0, 0xFFFF):04x}"  # 4 位十六进制数 (0000-ffff)
     return f"{timestamp}_{random_suffix}"
 
 
 def create_task_output_dir(task_id: Optional[str] = None) -> Tuple[str, str]:
     """
-    Create isolated output directory for single video generation task
+    为单次视频生成任务创建一个独立的隔离目录结构。
     
-    Directory structure:
+    创建的目录结构示例:
         output/{task_id}/
-        ├── final.mp4           # Final video output
-        ├── frames/             # All frame-related files
+        ├── final.mp4           # 最终合成的长视频
+        ├── frames/             # 中间切片与分镜素材
         │   ├── 01_audio.mp3
         │   ├── 01_image.png
         │   ├── 01_composed.png
         │   ├── 01_segment.mp4
         │   └── ...
-        └── metadata.json       # Optional: task metadata
+        └── metadata.json       # 记录执行元数据
     
     Args:
-        task_id: Optional task ID (auto-generated if None)
+        task_id: 可选。指定任务 ID，未指定则自动生成。
     
     Returns:
-        (task_dir, task_id) tuple
-        
-    Example:
-        >>> task_dir, task_id = create_task_output_dir()
-        >>> # task_dir = "/path/to/project/output/20251028_143052_ab3d"
-        >>> # task_id = "20251028_143052_ab3d"
+        Tuple[str, str]: (任务的绝对根目录, 任务ID)
     """
     if task_id is None:
         task_id = create_task_id()
@@ -256,18 +223,14 @@ def create_task_output_dir(task_id: Optional[str] = None) -> Tuple[str, str]:
 
 def get_task_path(task_id: str, *paths: str) -> str:
     """
-    Get path within task directory
+    获取指定任务目录下的某个子路径。
     
     Args:
-        task_id: Task ID
-        *paths: Path components to join
+        task_id: 任务 ID。
+        *paths: 路径子组件。
     
     Returns:
-        Absolute path within task directory
-        
-    Example:
-        >>> get_task_path("20251028_143052_ab3d", "final.mp4")
-        >>> # Returns: "/path/to/project/output/20251028_143052_ab3d/final.mp4"
+        str: 绝对路径。
     """
     task_dir = get_output_path(task_id)
     if paths:
@@ -281,19 +244,17 @@ def get_task_frame_path(
     file_type: Literal["audio", "image", "video", "composed", "segment"]
 ) -> str:
     """
-    Get frame file path within task directory
+    获取某个任务中特定分镜素材的规范化保存路径。
+    
+    为保证目录排序和可读性，分镜文件名统一使用 01 起步的两位数补零索引。
     
     Args:
-        task_id: Task ID
-        frame_index: Frame index (0-based internally, but filename starts from 01)
-        file_type: File type (audio/image/video/composed/segment)
+        task_id: 任务 ID。
+        frame_index: 内部数组的分镜索引（从 0 开始）。
+        file_type: 素材类型枚举。
     
     Returns:
-        Absolute path to frame file
-        
-    Example:
-        >>> get_task_frame_path("20251028_143052_ab3d", 0, "audio")
-        >>> # Returns: ".../output/20251028_143052_ab3d/frames/01_audio.mp3"
+        str: 物理文件的绝对存放路径。
     """
     ext_map = {
         "audio": "mp3",
@@ -309,51 +270,29 @@ def get_task_frame_path(
 
 
 def get_task_final_video_path(task_id: str) -> str:
-    """
-    Get final video path within task directory
-    
-    Args:
-        task_id: Task ID
-    
-    Returns:
-        Absolute path to final video
-        
-    Example:
-        >>> get_task_final_video_path("20251028_143052_ab3d")
-        >>> # Returns: ".../output/20251028_143052_ab3d/final.mp4"
-    """
+    """快捷获取任务最终输出的合并视频路径"""
     return get_task_path(task_id, "final.mp4")
 
 
-# ========== Resource Management (Templates/BGM/Workflows) ==========
+# ========== Resource Management (Templates/BGM/Workflows) / 资源库级联管理 ==========
 
 def get_resource_path(resource_type: Literal["bgm", "templates", "workflows"], *paths: str) -> str:
     """
-    Get resource file path with custom override support
+    获取系统素材的真实物理路径（带有自定义重写支持的级联搜索）。
     
-    Search priority:
-        1. data/{resource_type}/*paths  (custom, higher priority)
-        2. {resource_type}/*paths       (default, fallback)
+    搜索优先级:
+        1. data/{resource_type}/*paths  (位于用户的数据挂载区，优先级更高)
+        2. {resource_type}/*paths       (系统出厂自带的预置库)
     
     Args:
-        resource_type: Resource type ("bgm", "templates", "workflows")
-        *paths: Path components relative to resource directory
+        resource_type: 资源大类 ("bgm", "templates", "workflows")
+        *paths: 资源相对于大类的具体层级路径。
     
     Returns:
-        Absolute path to resource file (custom if exists, otherwise default)
+        str: 匹配成功的资源绝对路径。
     
     Raises:
-        FileNotFoundError: If file not found in either location
-        
-    Examples:
-        >>> get_resource_path("bgm", "happy.mp3")
-        # Returns: "data/bgm/happy.mp3" (if exists) or "bgm/happy.mp3"
-        
-        >>> get_resource_path("templates", "1080x1920", "default.html")
-        # Returns: "data/templates/1080x1920/default.html" or "templates/1080x1920/default.html"
-        
-        >>> get_resource_path("workflows", "selfhost", "image_flux.json")
-        # Returns: "data/workflows/selfhost/image_flux.json" or "workflows/selfhost/image_flux.json"
+        FileNotFoundError: 当两处目录均无法找到该资源时抛出。
     """
     # Build custom path (data/*)
     custom_path = get_data_path(resource_type, *paths)
@@ -382,28 +321,16 @@ def list_resource_files(
     subdir: str = ""
 ) -> list[str]:
     """
-    List resource files with custom override support
+    合并列出某个资源类型目录下的所有文件。
     
-    Merges files from both default and custom locations:
-        - Files from data/{resource_type}/* (custom, higher priority)
-        - Files from {resource_type}/* (default)
-        - Duplicate names are deduplicated (custom takes precedence)
+    如果同名文件同时存在于默认库和用户挂载库，用户库 (data/) 的文件将覆盖系统默认的文件。
     
     Args:
-        resource_type: Resource type ("bgm", "templates", "workflows")
-        subdir: Optional subdirectory (e.g., "1080x1920" for templates)
+        resource_type: 资源大类。
+        subdir: 可选的具体子级目录。
     
     Returns:
-        Sorted list of filenames (deduplicated, custom overrides default)
-        
-    Examples:
-        >>> list_resource_files("bgm")
-        # Returns: ["custom.mp3", "default.mp3", "happy.mp3"]
-        # (merged from bgm/ and data/bgm/)
-        
-        >>> list_resource_files("templates", "1080x1920")
-        # Returns: ["custom.html", "default.html", "modern.html"]
-        # (merged from templates/1080x1920/ and data/templates/1080x1920/)
+        list[str]: 经去重并排序后的文件名列表。
     """
     files = {}  # Use dict to track source priority: {filename: path}
     
@@ -430,22 +357,10 @@ def list_resource_dirs(
     resource_type: Literal["bgm", "templates", "workflows"]
 ) -> list[str]:
     """
-    List subdirectories in resource directory
-    
-    Merges directories from both default and custom locations.
-    
-    Args:
-        resource_type: Resource type ("bgm", "templates", "workflows")
+    合并列出某个资源类型目录下的所有子目录名（去重）。
     
     Returns:
-        Sorted list of directory names (deduplicated)
-        
-    Examples:
-        >>> list_resource_dirs("templates")
-        # Returns: ["1080x1080", "1080x1920", "1920x1080"]
-        
-        >>> list_resource_dirs("workflows")
-        # Returns: ["runninghub", "selfhost"]
+        list[str]: 排序后的子文件夹名称集合。
     """
     dirs = set()
     
@@ -470,24 +385,12 @@ def list_resource_dirs(
 
 def resource_exists(resource_type: Literal["bgm", "templates", "workflows"], *paths: str) -> bool:
     """
-    Check if resource file exists (in custom or default location)
-    
-    Args:
-        resource_type: Resource type ("bgm", "templates", "workflows")
-        *paths: Path components relative to resource directory
+    判断目标资源文件是否存在（涵盖系统预置库和用户数据库）。
     
     Returns:
-        True if exists in either location, False otherwise
-        
-    Examples:
-        >>> resource_exists("bgm", "happy.mp3")
-        True
-        
-        >>> resource_exists("templates", "1080x1920", "default.html")
-        True
+        bool: 存在返回 True。
     """
     custom_path = get_data_path(resource_type, *paths)
     default_path = get_root_path(resource_type, *paths)
     
     return os.path.exists(custom_path) or os.path.exists(default_path)
-

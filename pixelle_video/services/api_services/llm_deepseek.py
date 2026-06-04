@@ -11,7 +11,7 @@ class DeepSeek:
     """
     def __init__(self, base_url="", api_key=""):
         self.base_url = base_url or os.getenv("DEEPSEEK_BASE_URL") or "https://api.deepseek.com/v1"
-        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY")
+        self.api_key = api_key or os.getenv("DEEPSEEK_API_KEY") or "sk-dummy"
         
         if not self.api_key:
             print("Warning: DEEPSEEK_API_KEY is not set.")

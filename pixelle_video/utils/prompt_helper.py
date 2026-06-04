@@ -13,20 +13,21 @@
 """
 Prompt helper utilities
 
-Simple utilities for building prompts with optional prefixes.
+提示词构建辅助工具。
+用于在将用户/AI 生成的基础提示词发送给画图引擎之前，进行格式化和前缀修饰。
 """
 
 
 def build_image_prompt(prompt: str, prefix: str = "") -> str:
     """
-    Build final image prompt with optional prefix
+    将基础提示词与全局风格前缀安全拼接。
     
     Args:
-        prompt: User's raw prompt
-        prefix: Optional prefix to add before the prompt
+        prompt: 用户或 AI 生成的原始图像描述提示词。
+        prefix: (可选) 需要加在最前面的风格修饰词 (如 "anime style", "masterpiece")。
     
     Returns:
-        Final prompt with prefix applied (if provided)
+        str: 拼接好的最终提示词。
     
     Examples:
         >>> build_image_prompt("a cat", "")
@@ -47,4 +48,3 @@ def build_image_prompt(prompt: str, prefix: str = "") -> str:
         return prefix
     else:
         return prompt
-

@@ -13,7 +13,8 @@
 """
 Configuration loader - Pure YAML
 
-Handles loading and saving configuration from/to YAML files.
+配置文件加载器模块 (纯 YAML 处理)。
+负责从磁盘中读取和保存系统全局的 `config.yaml` 配置文件。
 """
 from pathlib import Path
 import yaml
@@ -22,13 +23,16 @@ from loguru import logger
 
 def load_config_dict(config_path: str = "config.yaml") -> dict:
     """
-    Load configuration from YAML file
+    从指定的 YAML 文件中读取并加载为 Python 字典。
+    
+    如果文件不存在或加载失败，系统不会崩溃，而是会安全地回退到一个空字典，
+    并在后续流程中依赖 Pydantic 的默认值。
     
     Args:
-        config_path: Path to config file
+        config_path: 配置文件的相对或绝对路径。
         
     Returns:
-        Configuration dictionary
+        dict: 配置文件解析出的字典数据。
     """
     config_file = Path(config_path)
     
@@ -49,17 +53,20 @@ def load_config_dict(config_path: str = "config.yaml") -> dict:
 
 def save_config_dict(config: dict, config_path: str = "config.yaml"):
     """
-    Save configuration to YAML file
+    将 Python 字典数据安全地写入和保存为 YAML 文件。
     
     Args:
-        config: Configuration dictionary
-        config_path: Path to config file
+        config: 待保存的配置字典。
+        config_path: 目标写入路径。
+        
+    Raises:
+        Exception: 写入磁盘失败时向上抛出异常。
     """
     try:
         with open(config_path, 'w', encoding='utf-8') as f:
+            # 开启 allow_unicode 以确保中文字符不被转义，sort_keys 保持用户原本的节点顺序
             yaml.dump(config, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
         logger.info(f"Configuration saved to {config_path}")
     except Exception as e:
         logger.error(f"Failed to save config: {e}")
         raise
-

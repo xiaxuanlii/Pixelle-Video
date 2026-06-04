@@ -13,7 +13,9 @@
 """
 Image Analysis Service - ComfyUI Workflow-based implementation
 
-Uses Florence-2 or other vision models to analyze images and generate descriptions.
+图像分析服务 (基于 ComfyUI 工作流实现)。
+借助大视觉模型 (Vision-Language Models，如 Florence-2, BLIP 等) 来剖析图片语义并回传其精确描述。
+这被主要应用于“资产驱动生成”中：当用户扔上几张自己产品的图，本服务负责把它提取为关键词让 LLM 编剧。
 """
 
 from typing import Optional, Literal
@@ -27,27 +29,17 @@ from pixelle_video.services.comfy_base_service import ComfyBaseService
 
 class ImageAnalysisService(ComfyBaseService):
     """
-    Image analysis service - Workflow-based
+    图像解析与理解服务 (基于工作流)。
     
-    Uses ComfyKit to execute image analysis workflows (e.g., Florence-2, BLIP, etc.).
-    Returns detailed textual descriptions of images.
+    通过底层的 ComfyKit 将图片扔给视觉多模态大模型进行观察和总结，最后返回自然语言的长篇描述文本。
     
-    Convention: workflows follow {source}/analyse_image.json pattern
-    - runninghub/analyse_image.json (default, cloud-based)
-    - selfhost/analyse_image.json (local ComfyUI)
+    命名规约：所有的相关配置文件必须满足 `{source}/analyse_*.json` 的特征约束。
+    - runninghub/analyse_image.json (针对云端，速度最快，默认策略)
+    - selfhost/analyse_image.json (为私有部署，保障隐私安全)
     
-    Usage:
-        # Use default (runninghub cloud)
+    使用示例:
+        # 使用云端方案进行全自动理解分析
         description = await pixelle_video.image_analysis("path/to/image.jpg")
-        
-        # Use local ComfyUI
-        description = await pixelle_video.image_analysis(
-            "path/to/image.jpg",
-            source="selfhost"
-        )
-        
-        # List available workflows
-        workflows = pixelle_video.image_analysis.list_workflows()
     """
     
     WORKFLOW_PREFIX = "analyse_"
@@ -55,110 +47,81 @@ class ImageAnalysisService(ComfyBaseService):
     
     def __init__(self, config: dict, core=None):
         """
-        Initialize image analysis service
+        初始化解析服务。
         
         Args:
-            config: Full application config dict
-            core: PixelleVideoCore instance (for accessing shared ComfyKit)
+            config: 全局配置参数容器字典。
+            core: 全局生命周期的 PixelleVideoCore 实例代理（可复用统一建立的 websocket 并发长连接）。
         """
         super().__init__(config, service_name="image_analysis", core=core)
     
     async def __call__(
         self,
         image_path: str,
-        # Workflow source selection
+        # 模型后端的来源指示
         source: Literal['runninghub', 'selfhost'] = 'runninghub',
         workflow: Optional[str] = None,
-        # ComfyUI connection (optional overrides)
+        # ComfyUI 重定向相关透传选项
         comfyui_url: Optional[str] = None,
         runninghub_api_key: Optional[str] = None,
-        # Additional workflow parameters
+        # 后门扩展
         **params
     ) -> str:
         """
-        Analyze an image using workflow
+        调用视觉模型读取特定图片内容的主干方法。
         
         Args:
-            image_path: Path to the image file (local or URL)
-            source: Workflow source - 'runninghub' (cloud, default) or 'selfhost' (local ComfyUI)
-            workflow: Workflow filename (optional, overrides source-based resolution)
-            comfyui_url: ComfyUI URL (optional, overrides config)
-            runninghub_api_key: RunningHub API key (optional, overrides config)
-            **params: Additional workflow parameters
-        
+            image_path: 等待检查的单张本地素材存放路径。
+            source: 后端推理提供商策略 ('runninghub' 或 'selfhost')。
+            workflow: 如果强制提供某个文件，会覆盖规约自动探测结果。
+            **params: 追加的扩展变量支持（有些模型可能要求传递 prompt 指导它如何检查图片，如“只看左上角”）。
+            
         Returns:
-            str: Text description of the image
-        
-        Examples:
-            # Simplest: use default (runninghub cloud)
-            description = await pixelle_video.image_analysis("temp/06.JPG")
-            
-            # Use local ComfyUI
-            description = await pixelle_video.image_analysis(
-                "temp/06.JPG",
-                source="selfhost"
-            )
-            
-            # Use specific workflow (bypass source-based resolution)
-            description = await pixelle_video.image_analysis(
-                "temp/06.JPG",
-                workflow="selfhost/custom_analysis.json"
-            )
+            str: 成功提取的模型解析内容文本段落。
         """
         from pixelle_video.utils.workflow_util import resolve_workflow_path
         
-        # 1. Validate image path
+        # 1. 对上传资产的本地可用情况进行强制的前置校验
         image_path_obj = Path(image_path)
         if not image_path_obj.exists():
             raise FileNotFoundError(f"Image file not found: {image_path}")
         
-        # 2. Resolve workflow path using convention
+        # 2. 如果业务没有强制打偏，遵照标准的命名约定进行路由寻址
         if workflow is None:
-            # Use standardized naming: {source}/analyse_image.json
             workflow = resolve_workflow_path("analyse_image", source)
             logger.info(f"Using {source} workflow: {workflow}")
         
-        # 2. Resolve workflow (returns structured info)
         workflow_info = self._resolve_workflow(workflow=workflow)
         
-        # 3. Build workflow parameters
+        # 3. 将本地路径赋值给名为 'image' 的变量供底层引擎通过 HTTP 上传传输
         workflow_params = {
-            "image": str(image_path)  # Pass image path to workflow
+            "image": str(image_path)
         }
-        
-        # Add any additional parameters
         workflow_params.update(params)
-        
         logger.debug(f"Workflow parameters: {workflow_params}")
         
-        # 4. Execute workflow using shared ComfyKit instance from core
         try:
-            # Get shared ComfyKit instance (lazy initialization + config hot-reload)
+            # 复用基底单例，获取到安全的并发支持
             kit = await self.core._get_or_create_comfykit()
             
-            # Determine what to pass to ComfyKit based on source
             if workflow_info["source"] == "runninghub" and "workflow_id" in workflow_info:
-                # RunningHub: pass workflow_id
                 workflow_input = workflow_info["workflow_id"]
                 logger.info(f"Executing RunningHub workflow: {workflow_input}")
             else:
-                # Selfhost: pass file path
                 workflow_input = workflow_info["path"]
                 logger.info(f"Executing selfhost workflow: {workflow_input}")
             
             result = await kit.execute(workflow_input, workflow_params)
             
-            # 5. Extract description from result
+            # 5. 断言结果完成度并开始从多达数百个节点的回复字典中寻宝 (提取出文本)
             if result.status != "completed":
                 error_msg = result.msg or "Unknown error"
                 logger.error(f"Image analysis failed: {error_msg}")
                 raise Exception(f"Image analysis failed: {error_msg}")
             
-            # Extract text description from result (format varies by source)
             description = None
             
-            # Try format 1: Selfhost outputs (direct text in outputs)
-            # Format: {'6': {'text': ['description text']}}
+            # 兼容形态 1: 原生/最直接的支持 - ComfyKit 返回的包装中包含了 texts 对象流
             if result.outputs:
                 for node_id, node_output in result.outputs.items():
                     if 'text' in node_output:
@@ -167,15 +130,12 @@ class ImageAnalysisService(ComfyBaseService):
                             description = text_list[0]
                             break
             
-            # Try format 2: RunningHub raw_data (text file URL)
-            # Format: {'raw_data': [{'fileUrl': 'https://...txt', 'fileType': 'txt', ...}]}
+            # 兼容形态 2: 部分 RunningHub 远端提供的分析模型，会将其当成一个完整的 .txt 附件放在原始数据中传输回源
             if not description and result.outputs and 'raw_data' in result.outputs:
                 raw_data = result.outputs['raw_data']
                 if raw_data and len(raw_data) > 0:
-                    # Find text file entry
                     for item in raw_data:
                         if item.get('fileType') == 'txt' and 'fileUrl' in item:
-                            # Download text content from URL
                             import aiohttp
                             async with aiohttp.ClientSession() as session:
                                 async with session.get(item['fileUrl']) as resp:
@@ -189,7 +149,6 @@ class ImageAnalysisService(ComfyBaseService):
                 raise Exception("No description generated")
             
             logger.info(f"✅ Image analyzed: {description[:100]}...")
-            
             return description
         
         except Exception as e:

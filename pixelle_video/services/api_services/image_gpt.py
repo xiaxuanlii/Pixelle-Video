@@ -28,7 +28,7 @@ class ImageGPT:
         :param base_url: 自定义 Base URL（如果传入，则不使用本地代理）
         :param timeout: 超时时间
         """
-        self.api_key = api_key or os.getenv("OPENAI_API_KEY")
+        self.api_key = api_key or os.getenv("OPENAI_API_KEY") or "sk-dummy"
         self.timeout = timeout
         
         kwargs = {"api_key": self.api_key, "timeout": self.timeout}

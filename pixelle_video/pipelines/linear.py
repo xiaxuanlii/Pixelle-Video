@@ -13,9 +13,9 @@
 """
 Linear Video Pipeline Base Class
 
-This module defines the template method pattern for linear video generation workflows.
-It introduces `PipelineContext` for state management and `LinearVideoPipeline` for
-process orchestration.
+线性视频生成流水线的基类模块。
+此模块利用“模板方法”（Template Method）设计模式定义了视频生成的标准工作流骨架。
+同时引入了 `PipelineContext` 用于整个生命周期中的状态管理。
 """
 
 from dataclasses import dataclass, field
@@ -34,51 +34,51 @@ from pixelle_video.models.progress import ProgressEvent
 @dataclass
 class PipelineContext:
     """
-    Context object holding the state of a single pipeline execution.
+    流水线执行上下文对象。
     
-    This object is passed between steps in the LinearVideoPipeline lifecycle.
+    该对象在 LinearVideoPipeline 的生命周期各个步骤之间传递，用于保存所有的输入参数、
+    中间生成状态以及最终的结果数据。
     """
-    # === Input ===
+    # === Input / 输入数据 ===
     input_text: str
     params: Dict[str, Any]
     progress_callback: Optional[Callable[[ProgressEvent], None]] = None
     
-    # === Task State ===
+    # === Task State / 任务状态 ===
     task_id: Optional[str] = None
     task_dir: Optional[str] = None
     
-    # === Content ===
+    # === Content / 文本内容 ===
     title: Optional[str] = None
     narrations: List[str] = field(default_factory=list)
     
-    # === Visuals ===
+    # === Visuals / 视觉计划 ===
     image_prompts: List[Optional[str]] = field(default_factory=list)
     
-    # === Configuration & Storyboard ===
+    # === Configuration & Storyboard / 配置与分镜剧本 ===
     config: Optional[StoryboardConfig] = None
     storyboard: Optional[Storyboard] = None
     
-    # === Output ===
+    # === Output / 最终输出 ===
     final_video_path: Optional[str] = None
     result: Optional[VideoGenerationResult] = None
 
 
 class LinearVideoPipeline(BasePipeline):
     """
-    Base class for linear video generation pipelines using the Template Method pattern.
+    基于模板方法设计模式的线性视频生成流水线基类。
     
-    This class orchestrates the video generation process into distinct lifecycle steps:
-    1. setup_environment
-    2. generate_content
-    3. determine_title
-    4. plan_visuals
-    5. initialize_storyboard
-    6. produce_assets
-    7. post_production
-    8. finalize
+    该类将复杂的视频生成过程编排为清晰的 8 个生命周期步骤：
+    1. setup_environment (初始化环境与任务目录)
+    2. generate_content (生成或处理脚本/旁白)
+    3. determine_title (确定或生成视频标题)
+    4. plan_visuals (生成画面提示词或视觉计划)
+    5. initialize_storyboard (初始化分镜剧本对象)
+    6. produce_assets (核心处理：生成音视频资产并渲染画面)
+    7. post_production (后期制作：拼接视频并添加 BGM)
+    8. finalize (流程收尾：持久化元数据并返回结果)
     
-    Subclasses should override specific steps to customize behavior while maintaining
-    the overall workflow structure.
+    子类应根据具体的业务需求重写特定的步骤，同时保持整体工作流结构的统一。
     """
     
     async def __call__(
@@ -88,9 +88,9 @@ class LinearVideoPipeline(BasePipeline):
         **kwargs
     ) -> VideoGenerationResult:
         """
-        Execute the pipeline using the template method.
+        执行基于模板方法的完整生成流水线。
         """
-        # 1. Initialize context
+        # 1. 初始化上下文对象
         ctx = PipelineContext(
             input_text=text,
             params=kwargs,
@@ -98,64 +98,64 @@ class LinearVideoPipeline(BasePipeline):
         )
         
         try:
-            # === Phase 1: Preparation ===
+            # === Phase 1: Preparation / 准备阶段 ===
             await self.setup_environment(ctx)
             
-            # === Phase 2: Content Creation ===
+            # === Phase 2: Content Creation / 内容创作阶段 ===
             await self.generate_content(ctx)
             await self.determine_title(ctx)
             
-            # === Phase 3: Visual Planning ===
+            # === Phase 3: Visual Planning / 视觉策划阶段 ===
             await self.plan_visuals(ctx)
             await self.initialize_storyboard(ctx)
             
-            # === Phase 4: Asset Production ===
+            # === Phase 4: Asset Production / 资产生产核心阶段 ===
             await self.produce_assets(ctx)
             
-            # === Phase 5: Post Production ===
+            # === Phase 5: Post Production / 后期处理阶段 ===
             await self.post_production(ctx)
             
-            # === Phase 6: Finalization ===
+            # === Phase 6: Finalization / 交付与收尾阶段 ===
             return await self.finalize(ctx)
             
         except Exception as e:
             await self.handle_exception(ctx, e)
             raise
 
-    # ==================== Lifecycle Methods ====================
+    # ==================== Lifecycle Methods / 生命周期方法 ====================
     
     async def setup_environment(self, ctx: PipelineContext):
-        """Step 1: Setup task directory and environment."""
+        """步骤 1：初始化任务独立目录和基础环境"""
         pass
         
     async def generate_content(self, ctx: PipelineContext):
-        """Step 2: Generate or process script/narrations."""
+        """步骤 2：生成或切分出用于各分镜的旁白脚本"""
         pass
         
     async def determine_title(self, ctx: PipelineContext):
-        """Step 3: Determine or generate video title."""
+        """步骤 3：确定或利用 AI 总结视频的主标题"""
         pass
         
     async def plan_visuals(self, ctx: PipelineContext):
-        """Step 4: Generate image prompts or visual descriptions."""
+        """步骤 4：基于各个旁白设计对应的画面提示词"""
         pass
         
     async def initialize_storyboard(self, ctx: PipelineContext):
-        """Step 5: Create Storyboard object and frames."""
+        """步骤 5：将前面生成的所有元数据拼装为 Storyboard 分镜剧本对象"""
         pass
         
     async def produce_assets(self, ctx: PipelineContext):
-        """Step 6: Generate audio, images, and render frames (Core processing)."""
+        """步骤 6：核心耗时步骤。调用底层引擎生成配音、配图/视频，并渲染出排版好的视频帧片段"""
         pass
         
     async def post_production(self, ctx: PipelineContext):
-        """Step 7: Concatenate videos and add BGM."""
+        """步骤 7：视频拼接与混入背景音乐"""
         pass
         
     async def finalize(self, ctx: PipelineContext) -> VideoGenerationResult:
-        """Step 8: Create result object and persist metadata."""
+        """步骤 8：持久化工作流历史记录并打包返回最终结果"""
         raise NotImplementedError("finalize must be implemented by subclass")
 
     async def handle_exception(self, ctx: PipelineContext, error: Exception):
-        """Handle exceptions during pipeline execution."""
+        """生命周期异常时的全局回调挂载点"""
         logger.error(f"Pipeline execution failed: {error}")
