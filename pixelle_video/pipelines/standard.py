@@ -402,7 +402,7 @@ class StandardPipeline(LinearVideoPipeline):
                     progress_callback=frame_progress_callback
                 )
                 storyboard.total_duration += processed_frame.duration
-                logger.info(f"✅ Frame {i+1} completed ({processed_frame.duration:.2f}s)")
+                logger.info(f"✅ Frame {i} completed ({processed_frame.duration:.2f}s)")
 
     async def post_production(self, ctx: PipelineContext):
         """第七步：后期制作。将产生的所有视频小片段拼接成完整长视频，并尝试混入背景音乐"""

@@ -151,7 +151,7 @@ class FrameProcessor:
             
             await self._step_create_video_segment(frame, config)
             
-            logger.info(f"✅ Frame {frame.index} completed")
+            logger.info(f"✅ Frame {frame.index} all steps completed")
             return frame
 
         except Exception as e:
@@ -200,7 +200,7 @@ class FrameProcessor:
         
         frame.audio_path = audio_path
         
-        # 读取生成音频的精确时长，这个时长极为关键，将驱动后续生视频阶段的时长参数
+        # 读取生成音频的精确时长，这个时长极为关键，将驱动后续生视频阶段的时长参数??为什么要通过音频去驱动生成视频的时长
         frame.duration = await self._get_audio_duration(audio_path)
         
         logger.debug(f"  ✓ Audio generated: {audio_path} ({frame.duration:.2f}s)")

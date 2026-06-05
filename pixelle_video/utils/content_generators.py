@@ -99,7 +99,8 @@ async def generate_narrations_from_topic(
     topic: str,
     n_scenes: int = 5,
     min_words: int = 5,
-    max_words: int = 20
+    max_words: int = 20,
+    max_retries: int = 3
 ) -> List[str]:
     """
     使用大模型根据简短的主题发散生成多个分镜的旁白。
@@ -110,6 +111,7 @@ async def generate_narrations_from_topic(
         n_scenes: 期望生成的分镜/旁白段数。
         min_words: 每段旁白的最小字数限制。
         max_words: 每段旁白的最大字数限制。
+        max_retries: 解析失败或截断时的最大重试次数。
     
     Returns:
         List[str]: 生成的旁白文本列表。
@@ -125,31 +127,39 @@ async def generate_narrations_from_topic(
         max_words=max_words
     )
     
-    response = await llm_service(
-        prompt=prompt,
-        temperature=0.8,
-        max_tokens=2000
-    )
-    
-    logger.debug(f"LLM response: {response[:200]}...")
-    
-    # Parse JSON
-    result = _parse_json(response)
-    
-    if "narrations" not in result:
-        raise ValueError("Invalid response format: missing 'narrations' key")
-    
-    narrations = result["narrations"]
-    
-    # Validate count
-    if len(narrations) > n_scenes:
-        logger.warning(f"Got {len(narrations)} narrations, taking first {n_scenes}")
-        narrations = narrations[:n_scenes]
-    elif len(narrations) < n_scenes:
-        raise ValueError(f"Expected {n_scenes} narrations, got only {len(narrations)}")
-    
-    logger.info(f"Generated {len(narrations)} narrations successfully")
-    return narrations
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = await llm_service(
+                prompt=prompt,
+                temperature=0.8,
+                max_tokens=2000
+            )
+            
+            logger.debug(f"LLM response: {response[:200]}...")
+            
+            # Parse JSON
+            result = _parse_json(response)
+            
+            if "narrations" not in result:
+                raise ValueError("Invalid response format: missing 'narrations' key")
+            
+            narrations = result["narrations"]
+            
+            # Validate count
+            if len(narrations) > n_scenes:
+                logger.warning(f"Got {len(narrations)} narrations, taking first {n_scenes}")
+                narrations = narrations[:n_scenes]
+            elif len(narrations) < n_scenes:
+                raise ValueError(f"Expected {n_scenes} narrations, got only {len(narrations)}")
+            
+            logger.info(f"Generated {len(narrations)} narrations successfully")
+            return narrations
+            
+        except Exception as e:
+            logger.warning(f"✗ Narration generation attempt {attempt} failed: {e}")
+            if attempt >= max_retries:
+                raise
+            logger.info(f"Retrying narration generation...")
 
 
 async def generate_narrations_from_content(
@@ -368,7 +378,7 @@ async def generate_image_prompts(
                     raise
                 logger.info(f"Retrying batch {batch_idx}...")
     
-    logger.info(f"✅ Generated {len(all_prompts)} image prompts")
+    logger.info(f"✅ Generated {len(all_prompts)} image prompts carry prefix")
     return all_prompts
 
 
