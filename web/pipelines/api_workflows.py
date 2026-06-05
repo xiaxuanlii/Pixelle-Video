@@ -45,6 +45,23 @@ def list_api_media_workflows(
                 **workflow,
             })
 
+        # Inject RunningHub workflows into the UI options
+        if hasattr(pixelle_video, "media"):
+            all_media_wfs = pixelle_video.media.list_workflows()
+            for wf in all_media_wfs:
+                # Basic check to filter by media_type based on filename prefix (e.g. video_ or image_)
+                if wf.get("source") == "runninghub" and media_type in wf.get("name", "").lower():
+                    workflows.append({
+                        "key": wf["key"],
+                        "display_name": f"{wf.get('name', wf['key'])} - RunningHub",
+                        "api_contract_verified": False,
+                        "adapter_ability_types": ["first_frame_i2v", "text_to_image", "image_to_video"], 
+                        "capabilities": {
+                            "duration": {"min": 2, "max": 15, "integer": True, "verified": False}
+                        },
+                        "media_type": media_type
+                    })
+
         return workflows
     except Exception as exc:
         logger.warning(f"Failed to list API {media_type} workflows: {exc}")
