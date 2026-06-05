@@ -477,11 +477,7 @@ async def generate_video_prompts(
 
 def _parse_json(text: str) -> dict:
     """
-    高兼容性的内部 JSON 解析器。
-    
-    如果遇到不规范的 JSON（如首尾包含多余文本或被包裹在 Markdown 代码块中），
-    尝试通过正则提取有效的 JSON 结构。
-    
+    高兼容性的内部 JSON 解析器，使用 json_repair 库修复由于大模型输出的不规范格式。
     Args:
         text: 包含目标 JSON 的原始文本。
         
@@ -498,28 +494,24 @@ def _parse_json(text: str) -> dict:
     # Try direct parsing first
     try:
         return json.loads(text)
-    except json.JSONDecodeError:
-        pass
-    
-    # Try to extract JSON from markdown code block
-    json_pattern = r'```(?:json)?\s*([\s\S]+?)\s*```'
-    match = re.search(json_pattern, text, re.DOTALL)
-    if match:
+    except json.JSONDecodeError as e:
+        logger.debug(f"Standard JSON parse failed, attempting repair. Error: {e}")
         try:
-            return json.loads(match.group(1))
-        except json.JSONDecodeError:
-            pass
-    
-    # Try to find any JSON object in the text
-    json_pattern = r'\{[^{}]*(?:"narrations"|"image_prompts")\s*:\s*\[[^\]]*\][^{}]*\}'
-    match = re.search(json_pattern, text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group(0))
-        except json.JSONDecodeError:
-            pass
-    
-    # If all fails, raise error
-    raise json.JSONDecodeError("No valid JSON found", text, 0)
+            import json_repair
+            repaired_json = json_repair.repair_json(text, return_objects=True)
+            if repaired_json is not None:
+                 # Check if the returned object is actually a string instead of dict/list.
+                 # json_repair sometimes returns a string if it's completely unparsable,
+                 # but typically we expect a dict here.
+                 if isinstance(repaired_json, (dict, list)):
+                     return repaired_json
+                 else:
+                     raise json.JSONDecodeError("json_repair returned a non-object", text, 0)
+            else:
+                 raise json.JSONDecodeError("json_repair could not repair the JSON", text, 0)
+        except Exception as repair_error:
+            error_msg = f"No valid JSON found and repair failed: {repair_error}"
+            logger.error(f"{error_msg}. Raw text: {text}")
+            raise json.JSONDecodeError(error_msg, text, 0) from e
 
 

@@ -31,6 +31,7 @@ dependencies = [
     "requests>=2.32.0",
     "pyjwt>=2.10.0",
     "numpy>=1.26.0",
+    "json-repair>=0.30.0",
 ]
 
 [project.optional-dependencies]
