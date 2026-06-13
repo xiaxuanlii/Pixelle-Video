@@ -491,6 +491,9 @@ def _parse_json(text: str) -> dict:
     if not text or not text.strip():
         raise ValueError("LLM returned an empty response. Please check your API key, network connection, or balance.")
         
+    text = text.strip()
+    text = re.sub(r"^```(?:json)?\s*\n(.*?)\n```$", r"\1", text, flags=re.DOTALL | re.IGNORECASE).strip()
+        
     # Try direct parsing first
     try:
         return json.loads(text)
