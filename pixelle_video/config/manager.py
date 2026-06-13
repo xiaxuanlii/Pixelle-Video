@@ -123,10 +123,12 @@ class ConfigManager:
     
     def set_llm_config(self, api_key: str, base_url: str, model: str):
         """封装供外部 API 或配置界面使用的修改并立即刷新 LLM 节点的方法"""
+        from pixelle_video.utils.llm_util import normalize_openai_base_url
+
         self.update({
             "llm": {
                 "api_key": api_key,
-                "base_url": base_url,
+                "base_url": normalize_openai_base_url(base_url),
                 "model": model,
             }
         })

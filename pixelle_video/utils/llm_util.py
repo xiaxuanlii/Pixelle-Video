@@ -13,13 +13,47 @@
 """
 LLM utility functions for model discovery and connection testing.
 
+<<<<<<< HEAD
 大语言模型连接测试与探测工具库。
 使用兼容 OpenAI API 规范的 `/v1/models` 端点探测服务可用性及当前后端的模型列表。
+=======
+Uses the OpenAI-compatible models endpoint.
+>>>>>>> upstream/main
 """
 
+import re
 from typing import List, Tuple
 import httpx
 from loguru import logger
+
+
+def _build_models_url(base_url: str) -> str:
+    """Build a provider models endpoint from a user-entered API base URL."""
+    raw = (base_url or "").strip().rstrip("/")
+    if raw.endswith("/models"):
+        return raw
+
+    normalized = normalize_openai_base_url(base_url)
+
+    if re.search(r"/v\d+(?:\.\d+)?$", normalized):
+        return f"{normalized}/models"
+
+    return f"{normalized}/v1/models"
+
+
+def normalize_openai_base_url(base_url: str) -> str:
+    """Normalize a user-entered OpenAI-compatible Base URL for SDK calls.
+
+    Users sometimes paste a concrete endpoint such as /chat/completions or
+    /models. The OpenAI SDK expects the API root, so concrete endpoint suffixes
+    must be stripped before real model calls.
+    """
+    normalized = (base_url or "").strip().rstrip("/")
+    for suffix in ("/chat/completions", "/completions", "/responses", "/models"):
+        if normalized.endswith(suffix):
+            normalized = normalized[: -len(suffix)].rstrip("/")
+            break
+    return normalized
 
 
 def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -> List[str]:
@@ -27,11 +61,13 @@ def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -
     探测目标 API 节点上所有可以提供调用的大模型列表。
     
     使用标准的 GET /v1/models 端点，并采用传入的 api_key 进行 Bearer 验证。
+    Uses the provider models endpoint with Bearer token authentication.
     
     Args:
-        api_key: 验证密钥。
-        base_url: 基础地址 (例如 https://api.openai.com/v1)。
-        timeout: 超时时间（秒）。
+        api_key: 验证密钥 / The API key for authentication
+        base_url: 基础地址 / The base URL of the API (e.g., https://api.openai.com/v1).
+            If a chat endpoint is pasted by mistake, it will be normalized.
+        timeout: 超时时间（秒） / Request timeout in seconds
     
     Returns:
         List[str]: 模型标识名称列表。
@@ -40,6 +76,7 @@ def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -
         httpx.HTTPStatusError: 网络请求返回非 2xx 状态码时。
         httpx.RequestError: 网络完全不通时。
     """
+<<<<<<< HEAD
     # Normalize base_url - ensure it ends with /v1 or similar
     base_url = base_url.rstrip("/")
     
@@ -50,6 +87,9 @@ def fetch_available_models(api_key: str, base_url: str, timeout: float = 10.0) -
         models_url = f"{base_url}/models"
     else:
         models_url = f"{base_url}/v1/models"
+=======
+    models_url = _build_models_url(base_url)
+>>>>>>> upstream/main
     
     headers = {
         "Authorization": f"Bearer {api_key}",

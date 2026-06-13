@@ -196,6 +196,10 @@ class LLMService:
                 
                 result = response.choices[0].message.content
                 logger.debug(f"LLM response length: {len(result)} chars")
+                if not result or not result.strip():
+                    logger.warning(
+                        f"LLM returned empty text content (model={final_model}, base_url={client.base_url})"
+                    )
                 
                 return result
         
@@ -344,4 +348,3 @@ class LLMService:
         model = self.active
         base_url = self._get_config_value("base_url", "default")
         return f"<LLMService model={model!r} base_url={base_url!r}>"
-

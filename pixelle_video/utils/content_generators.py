@@ -61,7 +61,7 @@ async def generate_title(
     
     # Pass max_length to prompt so LLM knows the character limit
     prompt = build_title_generation_prompt(content, max_length=max_length)
-    response = await llm_service(prompt, temperature=0.7, max_tokens=50)
+    response = await llm_service(prompt, temperature=0.7, max_tokens=2000)
     
     # Clean up response
     title = response.strip()
@@ -513,8 +513,14 @@ def _parse_json(text: str) -> dict:
             else:
                  raise json.JSONDecodeError("json_repair could not repair the JSON", text, 0)
         except Exception as repair_error:
+            # Fallback to regex before failing completely
+            json_pattern = r'\{[^{}]*(?:"narrations"|"image_prompts")\s*:\s*\[[^\]]*\][^{}]*\}'
+            match = re.search(json_pattern, text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(0))
+                except json.JSONDecodeError:
+                    pass
             error_msg = f"No valid JSON found and repair failed: {repair_error}"
             logger.error(f"{error_msg}. Raw text: {text}")
             raise json.JSONDecodeError(error_msg, text, 0) from e
-
-
