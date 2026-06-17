@@ -1,99 +1,181 @@
-2026-06-13 12:05:58.551 | INFO     | pixelle_video.pipelines.standard:setup_environment:82 - 🚀 Starting StandardPipeline in 'generate' mode
-2026-06-13 12:05:58.552 | INFO     | pixelle_video.pipelines.standard:setup_environment:83 -    Text length: 8 chars
-2026-06-13 12:05:58.553 | INFO     | pixelle_video.pipelines.standard:setup_environment:90 - 📁 Task directory created: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a
-2026-06-13 12:05:58.553 | INFO     | pixelle_video.pipelines.standard:setup_environment:91 -    Task ID: 20260613_120558_6d1a
-2026-06-13 12:05:58.556 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 5% - generating_narrations
-2026-06-13 12:05:58.560 | INFO     | pixelle_video.utils.content_generators:generate_narrations_from_topic:121 - Generating 3 narrations from topic: 如何增加被动收入
-2026-06-13 12:05:58.720 | DEBUG    | pixelle_video.services.llm_service:__call__:173 - LLM call: model=glm-4.5-air, base_url=https://open.bigmodel.cn/api/paas/v4/, response_type=None
-2026-06-13 12:06:21- httpx - INFO - _client.py:1740 - _send_single_request - HTTP Request: POST https://open.bigmodel.cn/api/paas/v4/chat/completions "HTTP/1.1 200 OK"
-2026-06-13 12:06:21.736 | DEBUG    | pixelle_video.services.llm_service:__call__:198 - LLM response length: 72 chars
-2026-06-13 12:06:21.737 | DEBUG    | pixelle_video.utils.content_generators:generate_narrations_from_topic:138 - LLM response: {
+1.生成工作目录
+
+2026-06-04 16:46:27.816 | INFO     | pixelle_video.pipelines.standard:setup_environment:82 - 🚀 Starting StandardPipeline in 'generate' mode
+2026-06-04 16:46:27.816 | INFO     | pixelle_video.pipelines.standard:setup_environment:83 -    Text length: 8 chars
+2026-06-04 16:46:27.818 | INFO     | pixelle_video.pipelines.standard:setup_environment:90 - 📁 Task directory created: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa
+2026-06-04 16:46:27.818 | INFO     | pixelle_video.pipelines.standard:setup_environment:91 -    Task ID: 20260604_164627_fbaa
+
+
+2.根据主题生成目标个故事
+
+2026-06-04 16:46:27.819 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 5% - generating_narrations
+2026-06-04 16:46:27.820 | INFO     | pixelle_video.utils.content_generators:generate_narrations_from_topic:119 - Generating 5 narrations from topic: 如何增加被动收入
+2026-06-04 16:46:27.858 | DEBUG    | pixelle_video.services.llm_service:__call__:173 - LLM call: model=glm-4.5-air, base_url=https://open.bigmodel.cn/api/paas/v4/, response_type=None
+2026-06-04 16:46:55- httpx - INFO - _client.py:1740 - _send_single_request - HTTP Request: POST https://open.bigmodel.cn/api/paas/v4/chat/completions "HTTP/1.1 200 OK"
+2026-06-04 16:46:55.522 | DEBUG    | pixelle_video.services.llm_service:__call__:198 - LLM response length: 126 chars
+2026-06-04 16:46:55.522 | DEBUG    | pixelle_video.utils.content_generators:generate_narrations_from_topic:134 - LLM response: ```json
+{
   "narrations": [
-    "睡后收入改变命运",
-    "投资理财稳赚不赔",
-    "行动起来改变生活"
+    "钱不是赚来的，是睡来的？",
+    "被动收入，自由的关键。",
+    "投资股票，钱生钱。",
+    "写电子书，持续收益。",
+    "行动吧，躺着赚钱"
   ]
-}...
-2026-06-13 12:06:21.738 | INFO     | pixelle_video.utils.content_generators:generate_narrations_from_topic:155 - Generated 3 narrations successfully
-2026-06-13 12:06:21.738 | INFO     | pixelle_video.pipelines.standard:generate_content:121 - ✅ Generated 3 narrations
-2026-06-13 12:06:21.738 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 1% - generating_title
-2026-06-13 12:06:21.739 | INFO     | pixelle_video.pipelines.standard:determine_title:145 -    Title: '如何增加被动收入' (auto-generated)
+}
+```...
+2026-06-04 16:46:55.523 | INFO     | pixelle_video.utils.content_generators:generate_narrations_from_topic:151 - Generated 5 narrations successfully
+2026-06-04 16:46:55.523 | INFO     | pixelle_video.pipelines.standard:generate_content:121 - ✅ Generated 5 narrations
 
 
-静态模板, 不需要生成图片或者视频资源
-2026-06-13 12:06:21.739 | INFO     | pixelle_video.pipelines.standard:plan_visuals:165 - ⚡ Static template - skipping media generation pipeline
-2026-06-13 12:06:21.739 | INFO     | pixelle_video.pipelines.standard:plan_visuals:166 -    💡 Benefits: Faster generation + Lower cost + No ComfyUI dependency
-2026-06-13 12:06:21.739 | INFO     | pixelle_video.pipelines.standard:plan_visuals:223 - ⚡ Skipped image prompt generation (static template)
-2026-06-13 12:06:21.740 | INFO     | pixelle_video.pipelines.standard:plan_visuals:224 -    💡 Savings: 3 LLM calls + 3 media generations
+3. 生成标题
+
+2026-06-04 16:46:58.170 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 1% - generating_title
+2026-06-04 16:46:58.170 | INFO     | pixelle_video.pipelines.standard:determine_title:145 -    Title: '如何增加被动收入' (auto-generated)
 
 
-"""第五步：拼装内部核心数据结构 Storyboard（分镜剧本大纲）"""
-处理tts的生成逻辑兼容配置, 以及生成故事板的数据结构
-2026-06-13 12:06:21.740 | DEBUG    | pixelle_video.pipelines.standard:initialize_storyboard:242 - TTS Mode: local (voice=zh-CN-YunjianNeural)
+4. 在模板库中选择模板, 
+静态
+图片 插图生成, 使用提示词前缀 -> 根据已有的旁白列表，利用大模型批量推理生成对应的画面提示词（用于生图）
+视频
+
+2026-06-04 16:46:58.171 | INFO     | pixelle_video.pipelines.standard:plan_visuals:161 - 📸 Template requires image generation
+2026-06-04 16:46:58.171 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 15% - generating_image_prompts
+2026-06-04 16:46:58.171 | INFO     | pixelle_video.pipelines.standard:plan_visuals:182 - Using custom prompt_prefix: 'Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style'
+2026-06-04 16:46:58.172 | INFO     | pixelle_video.utils.content_generators:generate_image_prompts:298 - Generating image prompts for 5 narrations (batch_size=10)
+
+批次处理 根据旁白生成画面提示词并加上前缀
+
+2026-06-04 16:46:58.172 | INFO     | pixelle_video.utils.content_generators:generate_image_prompts:302 - Split into 1 batches
+2026-06-04 16:46:58.173 | INFO     | pixelle_video.utils.content_generators:generate_image_prompts:308 - Processing batch 1/1 (5 narrations)
+2026-06-04 16:46:58.203 | DEBUG    | pixelle_video.services.llm_service:__call__:173 - LLM call: model=glm-4.5-air, base_url=https://open.bigmodel.cn/api/paas/v4/, response_type=None
+2026-06-04 16:47:45- httpx - INFO - _client.py:1740 - _send_single_request - HTTP Request: POST https://open.bigmodel.cn/api/paas/v4/chat/completions "HTTP/1.1 200 OK"
+2026-06-04 16:47:45.070 | DEBUG    | pixelle_video.services.llm_service:__call__:198 - LLM response length: 2336 chars
+2026-06-04 16:47:45.070 | DEBUG    | pixelle_video.utils.content_generators:generate_image_prompts:326 - Batch 1 attempt 1: LLM response length: 2336 chars
+2026-06-04 16:47:45.070 | INFO     | pixelle_video.utils.content_generators:generate_image_prompts:352 - ✅ Batch 1 completed successfully (5 prompts)
+2026-06-04 16:47:45.072 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 30% - generating_image_prompts
+2026-06-04 16:47:45.072 | INFO     | pixelle_video.utils.content_generators:generate_image_prompts:371 - ✅ Generated 5 image prompts
+2026-06-04 16:47:45.072 | INFO     | pixelle_video.pipelines.standard:plan_visuals:219 - ✅ Generated 5 image prompts
+
+将narration 与image_prompt 做配对, 然后生成故事面板
+2026-06-04 16:47:45.072 | DEBUG    | pixelle_video.pipelines.standard:initialize_storyboard:242 - TTS Mode: local (voice=zh-CN-YunjianNeural)
+
+核心生成环节。生产音频、生成图像，并将二者结合模板渲染为短视频片段
+2026-06-04 16:47:45.072 | INFO     | pixelle_video.pipelines.standard:produce_assets:368 - ⚙️ Using serial processing (non-RunningHub workflow)
+
+生成第n帧
+2026-06-04 16:49:26.230 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 68% - processing_frame
+2026-06-04 16:49:26.230 | INFO     | pixelle_video.services.frame_processor:__call__:78 - Processing frame 4...
+
+第一步:生成第n帧的tts
+2026-06-04 16:49:26.230 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_audio:167 -   1/4: Generating audio for frame 4...
+2026-06-04 16:49:26.231 | INFO     | pixelle_video.services.tts_service:_call_local_tts:182 - 🎙️  Using local Edge TTS: voice=zh-CN-YunjianNeural, speed=1.2x (rate=+19%)
+2026-06-04 16:49:26.231 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:100 - Calling Edge TTS with voice: zh-CN-YunjianNeural, rate: +19%, retry_count: 5
+2026-06-04 16:49:26.231 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:107 - Waiting 0.70s before request (rate limiting)
+2026-06-04 16:49:26.939 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:128 - Using certifi SSL certificates for secure Edge TTS connection
+2026-06-04 16:49:28.055 | INFO     | pixelle_video.utils.tts_util:edge_tts:155 - Generated 16272 bytes of audio data
+2026-06-04 16:49:28.056 | INFO     | pixelle_video.utils.tts_util:edge_tts:161 - Audio saved to: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_audio.mp3
+2026-06-04 16:49:28.056 | INFO     | pixelle_video.services.tts_service:_call_local_tts:201 - ✅ Generated audio (local Edge TTS): E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_audio.mp3
+
+获取生成音频的时长
+2026-06-04 16:49:28.127 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_audio:206 -   ✓ Audio generated: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_audio.mp3 (2.71s)
+
+第二步:生成第n帧的视频
+2026-06-04 16:49:28.128 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_media:214 -   2/4: Generating media for frame 4...
+2026-06-04 16:49:28.128 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_media:226 -   → Media type: image (workflow: runninghub/image_Z-image.json)
+扫描所有的image和video工作流
+2026-06-04 16:49:28.131 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_Z-image.json
+2026-06-04 16:49:28.132 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_flux.json
+2026-06-04 16:49:28.133 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_flux2.json
+2026-06-04 16:49:28.133 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_qwen.json
+2026-06-04 16:49:28.134 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_qwen_chinese_cartoon.json
+2026-06-04 16:49:28.135 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_sd3.5.json
+2026-06-04 16:49:28.135 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/image_sdxl.json
+2026-06-04 16:49:28.136 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/video_Z_image_wan2.2.json
+2026-06-04 16:49:28.137 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/video_qwen_wan2.2.json
+2026-06-04 16:49:28.137 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/video_understanding.json
+2026-06-04 16:49:28.138 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/video_wan2.1_fusionx.json
+2026-06-04 16:49:28.139 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: runninghub/video_wan2.2.json
+2026-06-04 16:49:28.141 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: selfhost/image_flux.json
+2026-06-04 16:49:28.142 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: selfhost/image_nano_banana.json
+2026-06-04 16:49:28.142 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: selfhost/image_qwen.json
+2026-06-04 16:49:28.143 | DEBUG    | pixelle_video.services.media:_scan_workflows:107 - Found workflow: selfhost/video_wan2.1_fusionx.json
+
+根据配置生成图片或者视频
+2026-06-04 16:49:28.144 | INFO     | pixelle_video.services.comfy_base_service:_resolve_workflow:154 - 🎬 Using image workflow: runninghub/image_Z-image.json
+2026-06-04 16:49:28.144 | DEBUG    | pixelle_video.services.media:__call__:219 - Workflow parameters: {'prompt': "Minimalist black-and-white matchstick figure style illustration, clean lines, simple sketch style, A person confidently opens a grand door revealing a sunlit path toward a horizon filled with symbols of wealth freedom - stock charts rising, properties multiplying, and passive income streams flowing like rivers. The person's expression is one of empowerment and determination, with golden light emanating from the doorway. The scene transitions from darkness to brightness, symbolizing the journey from dream to reality. Epic scale with inspirational atmosphere.", 'width': 1024, 'height': 1024, 'index': 5}
+2026-06-04 16:49:28.144 | INFO     | pixelle_video.services.media:__call__:228 - Executing RunningHub workflow: 1995319131513794562
+
+调用api的日志
+2026-06-04 16:49:28- PM - INFO - executor.py:300 - execute - Detected RunningHub workflow ID: 1995319131513794562
+2026-06-04 16:49:28- PM - INFO - runninghub_executor.py:82 - execute_by_id - Starting RunningHub workflow execution: workflow_id=1995319131513794562
+2026-06-04 16:49:28- PM - INFO - runninghub_executor.py:85 - execute_by_id - Fetching workflow definition for workflow_id=1995319131513794562
+2026-06-04 16:49:28- PM - INFO - runninghub_client.py:131 - get_workflow_json - Getting workflow JSON for workflow_id: 1995319131513794562
+2026-06-04 16:49:28- PM - INFO - runninghub_client.py:149 - get_workflow_json - Successfully retrieved workflow JSON for 1995319131513794562
+2026-06-04 16:49:28- PM - INFO - runninghub_executor.py:103 - execute_by_id - Workflow parsed successfully: 3 parameters found
+2026-06-04 16:49:28- PM - INFO - runninghub_client.py:239 - create_task - Creating task for workflow_id: 1995319131513794562
+2026-06-04 16:49:29- PM - INFO - runninghub_client.py:258 - create_task - Task created successfully: 2062456691408195586
+2026-06-04 16:49:29- PM - INFO - runninghub_executor.py:118 - execute_by_id - RunningHub task created: 2062456691408195586
+2026-06-04 16:49:29- PM - INFO - runninghub_executor.py:328 - _wait_for_task_completion - Waiting for RunningHub task completion: 2062456691408195586 (timeout: unlimited)
+2026-06-04 16:49:29- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:32- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:34- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:36- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:38- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:41- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:43- PM - INFO - runninghub_executor.py:366 - _wait_for_task_completion - Task 2062456691408195586 status: RUNNING, waiting...
+2026-06-04 16:49:47- PM - INFO - runninghub_executor.py:464 - _process_task_result - RunningHub task 2062456691408195586 completed successfully: 1 images, 0 videos, 0 audios, 0 texts
+
+远程生成了图片, 并保存在本地
+2026-06-04 16:49:47.289 | INFO     | pixelle_video.services.media:__call__:268 - ✅ Generated image: https://rh-images.xiaoyaoyou.com/fd14ee2cd36989e63851c6002146b8b9/output/ComfyUI_00002_oucxj_1780562981.png
+2026-06-04 16:49:47- httpx - INFO - _client.py:1740 - _send_single_request - HTTP Request: GET https://rh-images.xiaoyaoyou.com/fd14ee2cd36989e63851c6002146b8b9/output/ComfyUI_00002_oucxj_1780562981.png "HTTP/1.1 200 OK"
+2026-06-04 16:49:47.663 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_media:268 -   ✓ Image generated: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_image.png
+
+第三步: 将生成的图片和html模板拼在一起
+2026-06-04 16:49:47.664 | DEBUG    | pixelle_video.services.frame_processor:_step_compose_frame:336 -   3/4: Composing frame 4...
+2026-06-04 16:49:47.665 | DEBUG    | pixelle_video.services.frame_html:_load_template:125 - Template loaded: 14828 chars
+2026-06-04 16:49:47.666 | DEBUG    | pixelle_video.services.frame_html:__init__:78 - Loaded HTML template: E:\project_v2\Pixelle-Video\templates\1080x1920\image_default.html (size: 1080x1920)
+2026-06-04 16:49:47.666 | DEBUG    | pixelle_video.services.frame_processor:_compose_frame_html:376 - Generating frame with media: 'E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_image.png' (type: image)
+2026-06-04 16:49:47.667 | DEBUG    | pixelle_video.services.frame_html:generate_frame:391 - Converted image path to: file:///E:/project_v2/Pixelle-Video/output/20260604_164627_fbaa/frames/05_image.png
+2026-06-04 16:49:47.667 | DEBUG    | pixelle_video.services.frame_html:generate_frame:411 - Rendering HTML template to E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_composed.png (size: 1080x1920)
+2026-06-04 16:49:48.495 | INFO     | pixelle_video.services.frame_html:generate_frame:449 - Frame generated: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_composed.png
+2026-06-04 16:49:48.495 | DEBUG    | pixelle_video.services.frame_processor:_step_compose_frame:347 -   ✓ Frame composed: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_composed.png
+
+第四步: 将音频和图片, 生成视频
+2026-06-04 16:49:48.496 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:394 -   4/4: Creating video segment for frame 4...
+2026-06-04 16:49:48.496 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:433 -   → Using image-based composition
+2026-06-04 16:49:48.509 | INFO     | pixelle_video.services.video:create_video_from_image:611 - Creating video from image and audio
+2026-06-04 16:49:48.586 | DEBUG    | pixelle_video.services.video:create_video_from_image:617 - Audio duration: 2.712s
+2026-06-04 16:49:49.533 | SUCCESS  | pixelle_video.services.video:create_video_from_image:643 - Video created from image: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_segment.mp4 (duration: 2.712s)
+2026-06-04 16:49:49.534 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:448 -   ✓ Video segment created: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\frames\05_segment.mp4
+
+所有步骤完成
+2026-06-04 16:49:49.534 | INFO     | pixelle_video.services.frame_processor:__call__:154 - ✅ Frame 5 all steps completed
+2026-06-04 16:49:49.534 | INFO     | pixelle_video.pipelines.standard:produce_assets:405 - ✅ Frame 5 completed (2.71s)
+
+5.将所有故事片段的MP4合并成完整的视频
+2026-06-04 16:49:49.536 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 85% - concatenating
+2026-06-04 16:49:49.552 | INFO     | pixelle_video.services.video:concat_videos:158 - Concatenating 5 videos using demuxer method
+2026-06-04 16:49:49.554 | DEBUG    | pixelle_video.services.video:_concat_demuxer:209 - Created filelist: C:\Users\admin\AppData\Local\Temp\tmpt9h6ktv1.txt
+将视频拼接在一起
+2026-06-04 16:49:49.726 | SUCCESS  | pixelle_video.services.video:_concat_demuxer:217 - Videos concatenated successfully: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\final_no_bgm.mp4
+将bgm接入视频
+2026-06-04 16:49:49.726 | INFO     | pixelle_video.services.video:concat_videos:167 - Adding BGM: default.mp3 (volume=0.2, mode=loop)
+2026-06-04 16:49:49.727 | INFO     | pixelle_video.services.video:add_bgm:676 - Adding BGM to video (volume=0.2, loop=True)
+2026-06-04 16:49:50.072 | SUCCESS  | pixelle_video.services.video:add_bgm:715 - BGM added successfully: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\final.mp4
+2026-06-04 16:49:50.073 | SUCCESS  | pixelle_video.pipelines.standard:post_production:438 - 🎬 Video generation completed: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\final.mp4
 
 
-"""第六步：核心生成环节。生产音频、生成图像，并将二者结合模板渲染为短视频片段"""
-2026-06-13 12:06:25.840 | INFO     | pixelle_video.pipelines.standard:produce_assets:368 - ⚙️ Using serial processing (non-RunningHub workflow)
-2026-06-13 12:06:25.841 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 20% - processing_frame
-
-
-开始处理第n帧
-2026-06-13 12:06:25.841 | INFO     | pixelle_video.services.frame_processor:__call__:78 - Processing frame 0...
-
-生成tts
-2026-06-13 12:06:25.842 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_audio:167 -   1/4: Generating audio for frame 0...
-2026-06-13 12:06:25.843 | INFO     | pixelle_video.services.tts_service:_call_local_tts:182 - 🎙️  Using local Edge TTS: voice=zh-CN-YunjianNeural, speed=1.2x (rate=+19%)
-2026-06-13 12:06:25.843 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:100 - Calling Edge TTS with voice: zh-CN-YunjianNeural, rate: +19%, retry_count: 5
-2026-06-13 12:06:25.844 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:107 - Waiting 0.52s before request (rate limiting)
-2026-06-13 12:06:26.376 | DEBUG    | pixelle_video.utils.tts_util:edge_tts:128 - Using certifi SSL certificates for secure Edge TTS connection
-2026-06-13 12:06:29.930 | INFO     | pixelle_video.utils.tts_util:edge_tts:155 - Generated 13536 bytes of audio data
-2026-06-13 12:06:29.931 | INFO     | pixelle_video.utils.tts_util:edge_tts:161 - Audio saved to: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_audio.mp3
-2026-06-13 12:06:29.931 | INFO     | pixelle_video.services.tts_service:_call_local_tts:201 - ✅ Generated audio (local Edge TTS): E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_audio.mp3
-获取音频的时长
-2026-06-13 12:06:30.667 | DEBUG    | pixelle_video.services.frame_processor:_step_generate_audio:206 -   ✓ Audio generated: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_audio.mp3 (2.26s)
-
-无需生成图像or视频, 跳过
-2026-06-13 12:06:30.667 | DEBUG    | pixelle_video.services.frame_processor:__call__:127 -   2/4: Skipped media generation (not required by template)
-
-加载 HTML 模板并组合排版生成覆盖层/基础画面
-准备模板
-2026-06-13 12:06:30.668 | DEBUG    | pixelle_video.services.frame_processor:_step_compose_frame:336 -   3/4: Composing frame 0...
-2026-06-13 12:06:30.671 | DEBUG    | pixelle_video.services.frame_html:_load_template:125 - Template loaded: 7644 chars
-2026-06-13 12:06:30.671 | DEBUG    | pixelle_video.services.frame_html:__init__:78 - Loaded HTML template: E:\project_v2\Pixelle-Video\templates\1080x1920\static_default.html (size: 1080x1920)
-2026-06-13 12:06:30.671 | DEBUG    | pixelle_video.services.frame_processor:_compose_frame_html:376 - Generating frame with media: 'None' (type: None)
-
-2026-06-13 12:06:30.672 | DEBUG    | pixelle_video.services.frame_html:generate_frame:411 - Rendering HTML template to E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_composed.png (size: 1080x1920)
-初始化浏览器
-2026-06-13 12:06:31.363 | DEBUG    | pixelle_video.services.frame_html:_ensure_browser:317 - Initialized Playwright Chromium browser
-2026-06-13 12:06:32.785 | INFO     | pixelle_video.services.frame_html:generate_frame:449 - Frame generated: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_composed.png
-2026-06-13 12:06:32.785 | DEBUG    | pixelle_video.services.frame_processor:_step_compose_frame:347 -   ✓ Frame composed: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_composed.png
-合成视频
-2026-06-13 12:06:32.786 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:394 -   4/4: Creating video segment for frame 0...
-2026-06-13 12:06:32.787 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:433 -   → Using image-based composition
-2026-06-13 12:06:32.802 | INFO     | pixelle_video.services.video:create_video_from_image:611 - Creating video from image and audio
-2026-06-13 12:06:32.874 | DEBUG    | pixelle_video.services.video:create_video_from_image:617 - Audio duration: 2.256s
-2026-06-13 12:06:34.522 | SUCCESS  | pixelle_video.services.video:create_video_from_image:643 - Video created from image: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_segment.mp4 (duration: 2.256s)
-2026-06-13 12:06:34.522 | DEBUG    | pixelle_video.services.frame_processor:_step_create_video_segment:448 -   ✓ Video segment created: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\frames\01_segment.mp4
-第n帧生成完毕
-2026-06-13 12:06:34.522 | INFO     | pixelle_video.services.frame_processor:__call__:154 - ✅ Frame 0 all steps completed
-2026-06-13 12:06:37.191 | INFO     | pixelle_video.pipelines.standard:produce_assets:405 - ✅ Frame 0 completed (2.26s)
-
-阶段5混合
-2026-06-13 12:06:53.498 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 85% - concatenating
-调用 ffmpeg 服务执行音视频混合轨道合并
-2026-06-13 12:06:53.514 | INFO     | pixelle_video.services.video:concat_videos:158 - Concatenating 3 videos using demuxer method
-2026-06-13 12:06:53.516 | DEBUG    | pixelle_video.services.video:_concat_demuxer:209 - Created filelist: C:\Users\admin\AppData\Local\Temp\tmpw4b5deno.txt
-2026-06-13 12:06:53.699 | SUCCESS  | pixelle_video.services.video:_concat_demuxer:217 - Videos concatenated successfully: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\final_no_bgm.mp4
-2026-06-13 12:06:53.700 | INFO     | pixelle_video.services.video:concat_videos:167 - Adding BGM: default.mp3 (volume=0.2, mode=loop)
-2026-06-13 12:06:53.701 | INFO     | pixelle_video.services.video:add_bgm:676 - Adding BGM to video (volume=0.2, loop=True)ut\20260613_120558_6d1a\final.mp4
-2026-06-13 12:06:53.938 | SUCCESS  | pixelle_video.pipelines.standard:post_production:438 - 🎬 Video generation completed: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\final.mp4
-
-阶段6收尾
-2026-06-13 12:06:53.939 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 100% - completed
-2026-06-13 12:06:53.939 | INFO     | pixelle_video.pipelines.standard:finalize:456 - ✅ Generated video: E:\project_v2\Pixelle-Video\output\20260613_120558_6d1a\final.mp4
-2026-06-13 12:06:53.940 | INFO     | pixelle_video.pipelines.standard:finalize:457 -    Duration: 7.01s
-2026-06-13 12:06:53.940 | INFO     | pixelle_video.pipelines.standard:finalize:458 -    Size: 0.58 MB
-2026-06-13 12:06:53.940 | INFO     | pixelle_video.pipelines.standard:finalize:459 -    Frames: 3
-2026-06-13 12:06:53.943 | DEBUG    | pixelle_video.services.persistence:save_task_metadata:122 - Saved task metadata: 20260613_120558_6d1a
-2026-06-13 12:06:53.945 | INFO     | pixelle_video.pipelines.standard:_persist_task_data:510 - 💾 Saved task metadata: 20260613_120558_6d1a
-2026-06-13 12:06:53.946 | DEBUG    | pixelle_video.services.persistence:save_storyboard:203 - Saved storyboard: 20260613_120558_6d1a2026-06-13 12:06:54.004 | DEBUG    | pixelle_video.services.frame_html:close_browser:358 - Playwright browser closed
+6.收尾阶段
+展示信息
+2026-06-04 16:49:50.073 | DEBUG    | pixelle_video.pipelines.base:_report_progress:115 - Progress: 100% - completed
+2026-06-04 16:49:50.074 | INFO     | pixelle_video.pipelines.standard:finalize:456 - ✅ Generated video: E:\project_v2\Pixelle-Video\output\20260604_164627_fbaa\final.mp4
+2026-06-04 16:49:50.074 | INFO     | pixelle_video.pipelines.standard:finalize:457 -    Duration: 13.99s
+2026-06-04 16:49:50.074 | INFO     | pixelle_video.pipelines.standard:finalize:458 -    Size: 0.53 MB
+2026-06-04 16:49:50.074 | INFO     | pixelle_video.pipelines.standard:finalize:459 -    Frames: 5
+保存元数据和故事列表
+2026-06-04 16:49:50.075 | DEBUG    | pixelle_video.services.persistence:save_task_metadata:122 - Saved task metadata: 20260604_164627_fbaa
+2026-06-04 16:49:50.075 | INFO     | pixelle_video.pipelines.standard:_persist_task_data:510 - 💾 Saved task metadata: 20260604_164627_fbaa
+2026-06-04 16:49:50.077 | DEBUG    | pixelle_video.services.persistence:save_storyboard:203 - Saved storyboard: 20260604_164627_fbaa
+2026-06-04 16:49:50.077 | INFO     | pixelle_video.pipelines.standard:_persist_task_data:514 - 💾 Saved storyboard: 20260604_164627_fbaa
+2026-06-04 16:49:50.189 | DEBUG    | pixelle_video.services.frame_html:close_browser:358 - Playwright browser closed
